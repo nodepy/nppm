@@ -43,6 +43,8 @@ import {RegistryClient} from './lib/registry'
 import PackageLifecycle from './lib/package-lifecycle'
 import {is_virtualenv, get_module_dist_info} from './lib/env'
 
+__version__ = module.package.payload['package']['version']
+
 class Less(object):
   # http://stackoverflow.com/a/3306399/791713
   def __init__(self, num_lines):
@@ -97,7 +99,7 @@ def exit_with_return(func):
 
 @click.group(help="""
   Node.py Package Manager (on {})
-  """.format(nodepy.VERSION))
+  """.format(__version__, nodepy.main.VERSION))
 def main():
   pass
 
