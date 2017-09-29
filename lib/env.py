@@ -33,7 +33,7 @@ def is_virtualenv():
   return False
 
 
-def get_directories(location):
+def get_directories(location, auto_upgrade=True):
   """
   Returns a dictionary that contains information on the install location of
   Node.py packages. The dictionary contains the following keys:
@@ -47,9 +47,15 @@ def get_directories(location):
 
   - pip_prefix
   - pip_lib
+
+  If *auto_upgrade* is #True (which it is by default), `'global'` will
+  automatically be upgraded into `'root'` inside a virtual environment.
   """
 
   assert location in ('local', 'global', 'root')
+  if auto_upgrade and location == 'global' and is_virtualenv():
+    location = 'root'
+
   local = pip.locations.distutils_scheme('', prefix='nodepy_modules/.pip')
   if location == 'local':
     return {
