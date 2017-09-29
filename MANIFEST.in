@@ -1,0 +1,5 @@
+include README.md
+include LICENSE.txt
+recursive-include nppm *
+prune nppm/dist
+prune nppm/nodepy_modules
