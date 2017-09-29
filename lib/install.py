@@ -48,6 +48,7 @@ import { get_directories, get_module_dist_info } from './env'
 import { parse as parse_manifest } from './manifest'
 import { PackageManifest, InvalidPackageManifest } from './manifest'
 
+PACKAGE_MANIFEST = module.context.package_manifest
 PACKAGE_LINK = '.nodepy-link'
 NPPM_INSTALLED_FILES = 'installed-files.txt'
 
@@ -90,7 +91,7 @@ def walk_package_files(manifest):
     for filename in files:
       filename = os.path.join(root, filename)
       rel = os.path.relpath(filename, manifest.directory)
-      if rel == 'package.json' or _check_include_file(rel, inpat, expat):
+      if rel == PACKAGE_MANIFEST or _check_include_file(rel, inpat, expat):
         yield (filename, rel)
 
 
@@ -164,12 +165,12 @@ class Installer:
     if lnk:
       rel = os.path.relpath(dirname, lnk.src)
       assert rel == os.curdir, rel
-      manifest_fn = os.path.join(lnk.dst, 'package.json')
+      manifest_fn = os.path.join(lnk.dst, PACKAGE_MANIFEST)
     else:
-      manifest_fn = os.path.join(dirname, 'package.json')
+      manifest_fn = os.path.join(dirname, PACKAGE_MANIFEST)
 
     if not os.path.isfile(manifest_fn):
-      print('Warning: found package directory without package.json')
+      print('Warning: found package directory without {}'.format(PACKAGE_MANIFEST))
       print("  at '{}'".format(dirname))
       raise PackageNotFound(package)
     else:
@@ -202,9 +203,9 @@ class Installer:
     link_fn = os.path.join(directory, PACKAGE_LINK)
     if os.path.isfile(link_fn):
       with open(link_fn, 'r') as fp:
-        manifest_fn = os.path.join(fp.read().rstrip('\n'), 'package.json')
+        manifest_fn = os.path.join(fp.read().rstrip('\n'), PACKAGE_MANIFEST)
     else:
-      manifest_fn = os.path.join(directory, 'package.json')
+      manifest_fn = os.path.join(directory, PACKAGE_MANIFEST)
 
     try:
       manifest = parse_manifest(manifest_fn)
@@ -412,7 +413,7 @@ class Installer:
       expect=None, movedir=False):
     """
     Installs a package from a directory. The directory must have a
-    `package.json` file. If *expect* is specified, it must be a tuple of
+    `nodepy-package.toml` file. If *expect* is specified, it must be a tuple of
     (package_name, version) that is expected to be installed with *directory*.
     The argument is used by #install_from_registry().
 
@@ -433,7 +434,7 @@ class Installer:
     (success, manifest)
     """
 
-    filename = os.path.normpath(os.path.abspath(os.path.join(directory, 'package.json')))
+    filename = os.path.normpath(os.path.abspath(os.path.join(directory, PACKAGE_MANIFEST)))
 
     try:
       manifest = parse_manifest(filename)

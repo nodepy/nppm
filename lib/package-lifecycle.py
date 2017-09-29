@@ -47,12 +47,12 @@ class PackageLifecycle(object):
   @staticmethod
   def find_package_json(path):
     """
-    Finds the first `package.json` file in *path* or any of its parent
+    Finds the first `nodepy-package.toml` file in *path* or any of its parent
     directories and returns it. Returns #None if no file can be found.
     """
 
     for directory in nodepy.upiter_directory(path):
-      fn = os.path.join(directory, 'package.json')
+      fn = os.path.join(directory, PACKAGE_MANIFEST)
       if os.path.isfile(fn):
         return fn
 
@@ -62,7 +62,7 @@ class PackageLifecycle(object):
         dist_dir = os.path.join(directory, 'dist')
       fn = self.find_package_json(directory)
       if not fn and not allow_no_manifest:
-        print('Error: package.json not found')
+        print('Error: {} not found'.format(PACKAGE_MANIFEST))
         exit(1)
       if fn:
         try:

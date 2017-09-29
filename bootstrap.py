@@ -32,6 +32,7 @@ import subprocess
 import sys
 
 import brewfix from './lib/brewfix'
+import { get_directories } from './lib/env'
 
 
 def main(args=None):
@@ -47,9 +48,17 @@ def main(args=None):
         'of copying the NPPM package files.')
   args = parser.parse_args(sys.argv[1:] if args is None else args)
 
+  if args.root:
+    location = 'root'
+  elif args.global_:
+    location = 'global'
+  else:
+    location = 'local'
+
+  dirs = get_directories(location)
+
   existed_before = os.path.isdir('nodepy_modules')
   print("Bootstrapping NPPM dependencies with Pip ...")
-  package = require('./package.json')
 
   # We would like to use Pip --prefix, but there seems to be a Bug on Windows
   # that lets installations fail (see nodepym/NPPM#9).
@@ -57,8 +66,8 @@ def main(args=None):
     site_packages = 'Lib/site-packages'
   else:
     site_packages = 'lib/python{}.{}/site-packages'.format(*sys.version_info)
-  cmd = ['--target', 'nodepy_modules/.pip/' + site_packages]
-  for key, value in package['python-dependencies'].items():
+  cmd = ['--prefix', dirs['pip_prefix']]
+  for key, value in module.package.payload['python_dependencies'].items():
     cmd.append(key + value)
 
   print('$ pip install', ' '.join(cmd))
@@ -84,7 +93,7 @@ def main(args=None):
     cmd.append('--root')
   if args.develop:
     cmd.append('--develop')
-  cmd.append(__directory__)
+  cmd.append(str(module.directory))
 
   # We need to set this option as otherwise the dependencies that we JUST
   # bootstrapped will be considered as already satsified, even though they

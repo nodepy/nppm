@@ -23,10 +23,10 @@ import os
 import re
 import six
 import string
+import toml
 
 import semver from './semver'
 import refstring from './refstring'
-import json from './util/json'
 
 # Django's URL validation regex.
 url_regex = re.compile(
@@ -70,10 +70,10 @@ class PackageVersion:
 
 class PackageManifest:
   """
-  This class describes a `package.json` package manifest in memory. Check out
-  the #schema for a description of supported fields. Additional fields are
-  only accepted when the name of that field also appears in the *engines*
-  object, for example
+  This class describes a `nodepy-package.toml` package manifest in memory.
+  Check out the #schema for a description of supported fields. Additional
+  fields are only accepted when the name of that field also appears in the
+  *engines* object, for example
 
   ```json
   {
@@ -93,34 +93,34 @@ class PackageManifest:
 
   schema = {
     "type": "object",
-    "required": ["name", "version"],
+    "required": ["package"],
     "properties": {
-      "name": {"type": "string"},
-      "version": {"type": "string"},
-      "description": {"type": "string"},
-      "author": {"type": "string"},
-      "repository": {"type": "string"},
-      "license": {"type": "string"},
-      "private": {"type": "boolean"},
-      "resolve_root": {"type": "string"},
-      "main": {"type": "string"},
-      "vendor-directories": {
-        "type": "array",
-        "items": {"type": "string"}
+      "package": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "version": {"type": "string"},
+          "description": {"type": "string"},
+          "author": {"type": "string"},
+          "repository": {"type": "string"},
+          "license": {"type": "string"},
+          "private": {"type": "boolean"},
+          "resolve_root": {"type": "string"},
+          "main": {"type": "string"},
+        },
+        "required": ["name", "version"]
       },
+      #"vendor-directories": {
+      #  "type": "array",
+      #  "items": {"type": "string"}
+      #},
+      # TODO: Development Python and Node.py dependencies?
+      #       Possibly via TOML subtables, eg. [dependencies."cfg(ENV==development)"].
       "dependencies": {
         "type": "object",
         "additionalProperties": {"type": "string"}
       },
-      "dev-dependencies": {
-        "type": "object",
-        "additionalProperties": {"type": "string"}
-      },
-      "python-dependencies": {
-        "type": "object",
-        "additionalProperties": {"type": "string"}
-      },
-      "dev-python-dependencies": {
+      "python_dependencies": {
         "type": "object",
         "additionalProperties": {"type": "string"}
       },
@@ -232,14 +232,14 @@ def parse(filename, directory=None):
   be derived from the *filename*.
 
   # Raises
-  InvalidPackageManifest: If the `package.json` file is invalid.
+  InvalidPackageManifest: If the `nodepy-package.toml` file is invalid.
   """
 
   if not directory:
     directory = os.path.dirname(filename) or '.'
   with open(filename, 'r') as fp:
     try:
-      data = json.load(fp)
+      data = toml.load(fp)
     except json.JSONDecodeError as exc:
       raise InvalidPackageManifest(filename, exc)
     return parse_dict(data, filename, directory, copy=False)

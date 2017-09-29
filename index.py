@@ -26,24 +26,25 @@ import click
 import collections
 import functools
 import getpass
-import json
 import nodepy
 import os
 import pip.req
 import six
 import sys
+import toml
 
 import manifest from './lib/manifest'
 import semver from './lib/semver'
 import refstring from './lib/refstring'
 import config from './lib/config'
 import logger from './lib/logger'
-import _install from './lib/install'
+import _install, {PACKAGE_MANIFEST} from './lib/install'
 import {RegistryClient} from './lib/registry'
 import PackageLifecycle from './lib/package-lifecycle'
 import {is_virtualenv, get_module_dist_info} from './lib/env'
 
 __version__ = module.package.payload['package']['version']
+VERSION = "{} [{}]".format(__version__, nodepy.main.VERSION)
 
 class Less(object):
   # http://stackoverflow.com/a/3306399/791713
@@ -97,9 +98,7 @@ def exit_with_return(func):
     sys.exit(res)
   return wrapper
 
-@click.group(help="""
-  Node.py Package Manager (on {})
-  """.format(__version__, nodepy.main.VERSION))
+@click.group(help=VERSION)
 def main():
   pass
 
@@ -110,7 +109,7 @@ def version():
   Print the nppm and Node.py version.
   """
 
-  print('nppm-{} (on {})'.format(require('./package.json')['version'], nodepy.VERSION))
+  print(VERSION)
 
 
 @main.command()
@@ -123,7 +122,7 @@ def version():
 @click.option('-I', '--ignore-installed', is_flag=True,
     help='Passes the same option to Pip.')
 @click.option('-P', '--packagedir', default='.',
-    help='The directory to read/write the package.json to/from.')
+    help='The directory to read/write the nodepy-package.toml to/from.')
 @click.option('--root', is_flag=True)
 @click.option('--recursive', is_flag=True,
     help='Satisfy dependencies of already satisfied dependencies.')
@@ -166,7 +165,7 @@ def install(packages, develop, python, develop_python, upgrade, global_,
 
   # FIXME: Validate registry URL as HTTPS.
 
-  packagefile = os.path.join(packagedir, 'package.json')
+  packagefile = os.path.join(packagedir, PACKAGE_MANIFEST)
 
   if save_ext:
     if save_dev:
@@ -181,10 +180,10 @@ def install(packages, develop, python, develop_python, upgrade, global_,
     return 1
   if save or save_dev:
     if not os.path.isfile(packagefile):
-      print('Error: can not --save or --save-dev without a package.json')
+      print('Error: can not --save or --save-dev without a {}'.format(PACKAGE_MANIFEST))
       return 1
     with open(packagefile) as fp:
-      package_json = json.load(fp, object_pairs_hook=collections.OrderedDict)
+      package_meta = json.load(fp, object_pairs_hook=collections.OrderedDict)
 
   if dev is None:
     dev = not (packages or develop or python or develop_python)
@@ -269,19 +268,19 @@ def install(packages, develop, python, develop_python, upgrade, global_,
 
   if (save or save_dev) and save_deps:
     field = 'dependencies' if save else 'dev-dependencies'
-    data = package_json.get(field, {})
+    data = package_meta.get(field, {})
     print('Saving {}...'.format(field))
     for key, value in save_deps:
       print('  "{}": "{}"'.format(key, value))
       data[key] = value
 
     data = sorted(data.items(), key=itemgetter(0))
-    package_json[field] = collections.OrderedDict(data)
+    package_meta[field] = collections.OrderedDict(data)
 
   if (save or save_dev) and python_deps:
     field = 'python-dependencies' if save else 'dev-python-dependencies'
     print("Saving {}...".format(field))
-    data = package_json.get(field, {})
+    data = package_meta.get(field, {})
     for pkg_name, dist_info in installer.installed_python_libs.items():
       if not dist_info:
         print('warning: could not find .dist-info of module "{}"'.format(pkg_name))
@@ -293,17 +292,17 @@ def install(packages, develop, python, develop_python, upgrade, global_,
 
     # Sort the data and insert it back into the package manifest.
     data = sorted(data.items(), key=itemgetter(0))
-    package_json[field] = collections.OrderedDict(data)
+    package_meta[field] = collections.OrderedDict(data)
 
   if save_ext and save_deps:
-    extensions = package_json.setdefault('extensions', [])
+    extensions = package_meta.setdefault('extensions', [])
     for ext_name in sorted(map(itemgetter(0), save_deps)):
       if ext_name not in extensions:
         extensions.append(ext_name)
 
   if (save or save_dev) and (save_deps or python_deps):
     with open(packagefile, 'w') as fp:
-      json.dump(package_json, fp, indent=2)
+      json.dump(package_meta, fp, indent=2)
 
   print()
   return 0
@@ -433,10 +432,10 @@ def register(registry, agree_tos, save):
 @exit_with_return
 def init(directory):
   """
-  Initialize a new package.json.
+  Initialize a new nodepy-package.toml.
   """
 
-  filename = os.path.join(directory, 'package.json')
+  filename = os.path.join(directory, PACKAGE_MANIFEST)
   if os.path.isfile(filename):
     print('error: "{}" already exists'.format(filename))
     return 1
@@ -472,7 +471,7 @@ def init(directory):
       results.setdefault('extensions', []).append('!require-unpack-syntax')
 
   with open(filename, 'w') as fp:
-    json.dump(results, fp, indent=2)
+    toml.dump({'package': results}, fp, indent=2)
     fp.write('\n')
 
 
@@ -517,7 +516,7 @@ def dirs(global_, root):
 @exit_with_return
 def run(script, args):
   """
-  Run a script that is specified in the package.json.
+  Run a script that is specified in the nodepy-package.toml.
   """
 
   if not PackageLifecycle(allow_no_manifest=True).run(script, args):
