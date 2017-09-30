@@ -24,6 +24,11 @@ import os
 import pip.locations
 import sys
 
+MODULES_DIRECTORY = module.context.modules_directory
+PACKAGE_MANIFEST = module.context.package_manifest
+PROGRAM_DIRECTORY = os.path.join(MODULES_DIRECTORY, '.bin')
+PIP_DIRECTORY = os.path.join(MODULES_DIRECTORY, '.pip')
+
 
 def is_virtualenv():
   if hasattr(sys, 'real_prefix'):
@@ -56,11 +61,11 @@ def get_directories(location, auto_upgrade=True):
   if auto_upgrade and location == 'global' and is_virtualenv():
     location = 'root'
 
-  local = pip.locations.distutils_scheme('', prefix='nodepy_modules/.pip')
+  local = pip.locations.distutils_scheme('', prefix=PIP_DIRECTORY)
   if location == 'local':
     return {
-      'packages': 'nodepy_modules',
-      'bin': 'nodepy_modules/.bin',
+      'packages': MODULES_DIRECTORY,
+      'bin': PROGRAM_DIRECTORY,
       'pip_prefix': local['data'],
       'pip_bin': local['scripts'],
       'pip_lib': local['purelib']
@@ -71,7 +76,7 @@ def get_directories(location, auto_upgrade=True):
   prefix = os.path.dirname(scheme['purelib'])
 
   return {
-    'packages': os.path.join(prefix, 'nodepy_modules'),
+    'packages': os.path.join(prefix, MODULES_DIRECTORY),
     'bin': scheme['scripts'],
     'pip_prefix': os.path.join(prefix, local['data']),
     'pip_bin': scheme['scripts'],

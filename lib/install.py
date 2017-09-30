@@ -44,11 +44,10 @@ import refstring from './refstring'
 import pathutils from './util/pathutils'
 import brewfix from './brewfix'
 import PackageLifecycle from './package-lifecycle'
-import { get_directories, get_module_dist_info } from './env'
+import { PACKAGE_MANIFEST, get_directories, get_module_dist_info } from './env'
 import { parse as parse_manifest } from './manifest'
 import { PackageManifest, InvalidPackageManifest } from './manifest'
 
-PACKAGE_MANIFEST = module.context.package_manifest
 PACKAGE_LINK = '.nodepy-link'
 NPPM_INSTALLED_FILES = 'installed-files.txt'
 

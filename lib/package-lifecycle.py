@@ -40,6 +40,7 @@ import logger from './logger'
 import _install from './install'
 import _manifest from './manifest'
 import {RegistryClient, get_package_archive_name} from './registry'
+import {PACKAGE_MANIFEST} from './env'
 
 
 class PackageLifecycle(object):

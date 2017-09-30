@@ -38,10 +38,10 @@ import semver from './lib/semver'
 import refstring from './lib/refstring'
 import config from './lib/config'
 import logger from './lib/logger'
-import _install, {PACKAGE_MANIFEST} from './lib/install'
+import _install from './lib/install'
 import {RegistryClient} from './lib/registry'
 import PackageLifecycle from './lib/package-lifecycle'
-import {is_virtualenv, get_module_dist_info} from './lib/env'
+import {PACKAGE_MANIFEST, is_virtualenv, get_module_dist_info} from './lib/env'
 
 __version__ = module.package.payload['package']['version']
 VERSION = "{} [{}]".format(__version__, nodepy.main.VERSION)
