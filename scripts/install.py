@@ -6,7 +6,9 @@ if require.main != module:
   raise RuntimeError('must not be required')
 
 import argparse
+import codecs
 import os
+import nodepy.runtime
 import shutil
 import subprocess
 import sys
@@ -32,6 +34,12 @@ parser.add_argument('-e', '--develop', action='store_true',
        'you want to update PM via Git or are developing it.')
 
 
+def read_proc(proc, encoding=None, prefix=''):
+  reader = codecs.getreader(encoding or sys.getdefaultencoding())
+  for line in reader(proc.stdout):
+    print(prefix + line.rstrip('\n'))
+
+
 def main():
   args = parser.parse_args()
   dirs = get_directories('global' if args.g else 'root')
@@ -40,13 +48,15 @@ def main():
   cmd = ['--prefix', dirs['pip_prefix']]
   for key, value in module.package.payload['python_dependencies'].items():
     cmd.append(key + value)
-  print('$ pip install', ' '.join(map(quote, cmd)))
 
   with brewfix():
     # We use a subprocess here as otherwise we run into nodepy/nodepy#48,
     # "underlying buffer has been detached" when Pip uses the spinner or
     # download progress bar.
-    res = subprocess.call([sys.executable, '-m', 'pip', 'install'] + cmd)
+    proc = subprocess.Popen([sys.executable, '-m', 'pip', 'install'] + cmd,
+      stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.PIPE)
+    read_proc(proc, prefix='  ')
+    res = proc.wait()
 
   if res != 0:
     print('fatal: pip exited with return code {}'.format(res))
@@ -77,8 +87,14 @@ def main():
   cmd.append('--pip-separate-process')
 
   print("starting self-installation...")
-  print("$ nodepy-pm", ' '.join(map(quote, cmd)))
-  require('../index').main(cmd, standalone_mode=False)
+
+  cmd = nodepy.runtime.exec_args + ['--python-path', dirs['pip_lib']] \
+      + [str(module.directory.parent.joinpath('index'))] + cmd
+
+  proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+    stdin=subprocess.PIPE)
+  read_proc(proc, prefix='  ')
+  return proc.wait()
 
 
 sys.exit(main())
