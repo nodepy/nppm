@@ -32,6 +32,7 @@ parser.add_argument('-e', '--develop', action='store_true',
   help='Install Node.py PM in develop mode, effectively linking it into the '
        'global package directory rather than copying it. Use this only if '
        'you want to update PM via Git or are developing it.')
+parser.add_argument('-f', '--force', action='store_true')
 
 
 def read_proc(proc, encoding=None, prefix=''):
@@ -79,6 +80,8 @@ def main():
     cmd.append('--global')
   if args.develop:
     cmd.append('--develop')
+  if args.force:
+    cmd.append('--force')
   cmd.append(str(module.directory.parent))
 
   # We need to set this option as otherwise the dependencies that we JUST

@@ -44,7 +44,8 @@ import refstring from './refstring'
 import pathutils from './util/pathutils'
 import brewfix from './brewfix'
 import PackageLifecycle from './package-lifecycle'
-import { PACKAGE_MANIFEST, get_directories, get_module_dist_info } from './env'
+import { PACKAGE_MANIFEST, MODULES_DIRECTORY,
+         get_directories, get_module_dist_info } from './env'
 import { parse as parse_manifest } from './manifest'
 import { PackageManifest, InvalidPackageManifest } from './manifest'
 
@@ -53,7 +54,7 @@ NPPM_INSTALLED_FILES = 'installed-files.txt'
 
 
 default_exclude_patterns = [
-    '.DS_Store', '.svn/*', '.git*', 'nodepy_modules/*',
+    '.DS_Store', '.svn/*', '.git*', MODULES_DIRECTORY + '/*',
     '*.pyc', '*.pyo', 'dist/*']
 
 
@@ -63,15 +64,23 @@ def _makedirs(path):
 
 
 def _match_any_pattern(filename, patterns):
-  return any(fnmatch(filename, x) for x in patterns)
+  if os.name == 'nt':
+    filename = filename.replace('\\', '/')
+  for pattern in patterns:
+    if filename == pattern or filename.startswith(pattern + '/') or \
+        filename.endswith('/' + pattern):
+      return True
+    if fnmatch(filename, pattern):
+      return True
+  return False
 
 
 def _check_include_file(filename, include_patterns, exclude_patterns):
+  if include_patterns and _match_any_pattern(filename, include_patterns):
+    return True
   if _match_any_pattern(filename, exclude_patterns):
     return False
-  if not include_patterns:
-    return True
-  return _match_any_pattern(filename, include_patterns)
+  return True
 
 
 class PackageNotFound(Exception):
@@ -85,6 +94,16 @@ def walk_package_files(manifest):
 
   inpat = manifest.dist.get('include_files', [])
   expat = manifest.dist.get('exclude_files', []) + default_exclude_patterns
+  if manifest.dist.get('exclude_gitignored_files', True):
+    ignore_file = os.path.join(manifest.directory, '.gitignore')
+    if os.path.isfile(ignore_file):
+      inpat.append('.gitignore')
+      with open(ignore_file) as fp:
+        for line in fp:
+          line = line.strip()
+          if not line: continue
+          if line.startswith('#') or line.startswith('!'): continue
+          expat.append(line)
 
   for root, __, files in os.walk(manifest.directory):
     for filename in files:
@@ -125,8 +144,8 @@ class Installer:
     self._old_sys_path = sys.path[:]
     self._old_pythonpath = os.getenv('PYTHONPATH', '')
     # Restore the previous path.
-    if nodepy.script:
-      sys.path[:] = nodepy.script['original_path']
+    if nodepy.runtime.script:
+      sys.path[:] = nodepy.runtime.script['original_path']
     # Add the path to the local Pip library path to sys.path and the PYTHONPATH
     # environment variable to ensure that the current installation process can
     # also find the already installed packages (some setup scripts might import
@@ -135,15 +154,15 @@ class Installer:
       sys.path[:] = [self.dirs['pip_lib']] + sys.path
       os.environ['PYTHONPATH'] = os.path.abspath(self.dirs['pip_lib']) \
           + os.pathsep + self._old_pythonpath
-    nodepy.reload_pkg_resources('pkg_resources')
-    nodepy.reload_pkg_resources('pip._vendor.pkg_resources')
+    nodepy.utils.machinery.reload_pkg_resources('pkg_resources')
+    nodepy.utils.machinery.reload_pkg_resources('pip._vendor.pkg_resources')
     try:
       yield
     finally:
       sys.path[:] = self._old_sys_path
       os.environ['PYTHONPATH'] = self._old_pythonpath
-      nodepy.reload_pkg_resources('pkg_resources')
-      nodepy.reload_pkg_resources('pip._vendor.pkg_resources')
+      nodepy.utils.machinery.reload_pkg_resources('pkg_resources')
+      nodepy.utils.machinery.reload_pkg_resources('pip._vendor.pkg_resources')
 
   def find_package(self, package):
     """
@@ -257,8 +276,7 @@ class Installer:
     """
 
     deps = dict(manifest.dependencies)
-    if dev:
-      deps.update(manifest.dev_dependencies)
+    # TODO: Resolve development dependencies
     if deps:
       print('Installing dependencies for "{}"{}...'.format(manifest.identifier,
           ' (dev) ' if dev else ''))
@@ -266,8 +284,7 @@ class Installer:
         return False
 
     deps = dict(manifest.python_dependencies)
-    if dev:
-      deps.update(manifest.dev_python_dependencies)
+    # TODO: Resolve development dependencies
     if deps:
       print('Installing Python dependencies for "{}"{}...'.format(
           manifest.identifier, ' (dev) ' if dev else ''))

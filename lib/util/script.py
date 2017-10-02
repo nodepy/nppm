@@ -56,7 +56,7 @@ class ScriptMaker:
     if self.pythonpath:
       path = [os.path.abspath(x) for x in self.pythonpath]
       # Remember: We don't set PYTHONPATH due to nodepy/nodepy#62
-      code += 'nodepy.script = {{"location": {location!r}, "original_path": sys.path[:]}}\n'\
+      code += 'nodepy.runtime.script = {{"location": {location!r}, "original_path": sys.path[:]}}\n'\
               'sys.path.extend({pythonpath!r})\n'\
               .format(pythonpath=path, location=self.location)
     return code + '\n'
@@ -112,15 +112,15 @@ class ScriptMaker:
     """
 
     args = ['--keep-arg0']
-    if reference_dir:
-      # Find modules in the reference directory.
-      args.append('--current-dir')
-      args.append(reference_dir)
+    #if reference_dir:
+    #  # Find modules in the reference directory.
+    #  args.append('--current-dir')
+    #  args.append(reference_dir)
     args.append(filename)
 
     code = 'import sys, nodepy;\n'\
            'sys.argv = [sys.argv[0]] + {args!r} + sys.argv[1:]\n'\
-           'sys.exit(nodepy.main())\n'.format(args=args)
+           'sys.exit(nodepy.main.main())\n'.format(args=args)
     return self.make_python(script_name, code)
 
   def make_wrapper(self, script_name, target_program):

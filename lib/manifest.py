@@ -110,12 +110,6 @@ class PackageManifest:
         },
         "required": ["name", "version"]
       },
-      #"vendor-directories": {
-      #  "type": "array",
-      #  "items": {"type": "string"}
-      #},
-      # TODO: Development Python and Node.py dependencies?
-      #       Possibly via TOML subtables, eg. [dependencies."cfg(ENV==development)"].
       "dependencies": {
         "type": "object",
         "additionalProperties": {"type": "string"}
@@ -156,11 +150,10 @@ class PackageManifest:
                                + string.digits + '-._@/')
 
   def __init__(self, filename, directory, name, version, description=None,
-      author=None, license=None, dependencies=None, dev_dependencies=None,
-      python_dependencies=None, dev_python_dependencies=None, scripts=None,
-      bin=None, engines=None, engine_props=None, dist=None, repository=None,
-      private=False, resolve_root=None, main=None, extensions=None,
-      vendor_directories=None):
+      authors=None, license=None, dependencies=None, python_dependencies=None,
+      scripts=None, bin=None, engines=None, engine_props=None, dist=None,
+      repository=None, private=False, resolve_root=None, main=None,
+      extensions=None):
     if len(name) < 2 or len(name) > 127:
       raise ValueError('packag name must be at least 2 and maximum 127 characters')
     if name.startswith('_') or name.startswith('.'):
@@ -174,14 +167,12 @@ class PackageManifest:
     self.directory = directory
     self.name = name
     self.version = version
-    self.author = author
+    self.authors = authors
     self.repository = repository
     self.description = description
     self.license = license
     self.dependencies = {} if dependencies is None else dependencies
-    self.dev_dependencies = {} if dev_dependencies is None else dev_dependencies
     self.python_dependencies = {} if python_dependencies is None else python_dependencies
-    self.dev_python_dependencies = {} if dev_python_dependencies is None else dev_python_dependencies
     self.scripts = {} if scripts is None else scripts
     self.bin = {} if bin is None else bin
     self.engine_props = {} if engine_props is None else engine_props
@@ -190,7 +181,6 @@ class PackageManifest:
     self.resolve_root = resolve_root
     self.main = main
     self.extensions = extensions
-    self.vendor_directories = [] if vendor_directories is None else list(vendor_directories)
 
   def __eq__(self, other):
     if isinstance(other, PackageManifest):
@@ -261,31 +251,35 @@ def parse_dict(data, filename=None, directory=None, copy=True):
   if copy:
     data = data.copy()
 
+  kwargs = {}
+
   # Validate the package name.
   try:
-    refstring.parse_package(data['name'])
+    refstring.parse_package(data['package']['name'])
+    kwargs['name'] = data['package']['name']
   except ValueError as exc:
     raise InvalidPackageManifest(filename, exc)
 
   try:
-    data['version'] = semver.Version(data['version'])
+    semver.Version(data['package']['version'])
+    kwargs['version'] = data['package']['version']
   except ValueError as exc:
     raise InvalidPackageManifest(filename, exc)
+
+  for k in 'private,resolve_root,main,extensions'.split(','):
+    if k in data['package']:
+      kwargs[k] = data['package'][k]
 
   dependencies = {}
   for dep, sel in data.get('dependencies', {}).items():
     dependencies[dep] = PackageVersion(dep, sel)
-  data['dependencies'] = dependencies
-
-  dev_dependencies = {}
-  for dep, sel in data.get('dev-dependencies', {}).items():
-    dev_dependencies[dep] = PackageVersion(dep, sel)
-  data['dev-dependencies'] = dev_dependencies
+  kwargs['dependencies'] = dependencies
+  kwargs['python_dependencies'] = data.get('python_dependencies', {})
 
   engines = {}
   for eng, sel in data.get('engines', {}).items():
     engines[eng] = semver.Selector(sel)
-  data['engines'] = engines
+  kwargs['engines'] = engines
 
   data.setdefault('engines', {})
   engine_props = {}
@@ -295,13 +289,13 @@ def parse_dict(data, filename=None, directory=None, copy=True):
         msg = 'unexpected additional field: "{}"'
         raise InvalidPackageManifest(filename, msg.format(key))
       engine_props[key] = data.pop(key)
+  kwargs['engine_props'] = engine_props
 
-  data['vendor_directories'] = data.pop('vendor-directories', None)
-  data['dev_dependencies'] = data.pop('dev-dependencies')
-  data['python_dependencies'] = data.pop('python-dependencies', None)
-  data['dev_python_dependencies'] = data.pop('dev-python-dependencies', None)
-  data['engine_props'] = engine_props
+  for k in 'authors,description,repository,license,scripts,bin,dist'.split(','):
+    if k in data:
+      kwargs[k] = data[k]
+
   try:
-    return PackageManifest(filename, directory, **data)
+    return PackageManifest(filename, directory, **kwargs)
   except ValueError as exc:
     six.raise_from(InvalidPackageManifest(filename, exc), exc)

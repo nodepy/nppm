@@ -27,6 +27,7 @@ import shlex
 import subprocess
 import tarfile
 
+from nodepy.utils import pathlib
 from six.moves import input
 from sys import exit
 
@@ -35,12 +36,21 @@ try:
 except ImportError:
   from pipes import quote as shlex_quote
 
+import nodepy
 import config from './config'
 import logger from './logger'
 import _install from './install'
 import _manifest from './manifest'
 import {RegistryClient, get_package_archive_name} from './registry'
-import {PACKAGE_MANIFEST} from './env'
+import {PACKAGE_MANIFEST, PROGRAM_DIRECTORY} from './env'
+
+
+def find_nearest_modules_directory(path):
+  for path in nodepy.utils.path.upiter(path):
+    path = path.joinpath(PROGRAM_DIRECTORY)
+    if path.is_dir():
+      return path
+  return None
 
 
 class PackageLifecycle(object):
@@ -143,9 +153,9 @@ class PackageLifecycle(object):
     self.run('post-publish', [], script_only=True)
 
   def run(self, script, args, script_only=False):
-    modules_dir = nodepy.find_nearest_modules_directory('.')
+    modules_dir = find_nearest_modules_directory(pathlib.Path.cwd())
     if modules_dir:
-      bindir = os.path.join(modules_dir, '.bin')
+      bindir = str(modules_dir.parent.joinpath(PROGRAM_DIRECTORY))
     else:
       bindir = _install.get_directories('local')['bin']
     oldpath = os.environ.get('PATH', '')
