@@ -15,6 +15,7 @@ import contextlib
 import errno
 import io
 import json
+import operator
 import os
 import nodepy.runtime
 import shutil
@@ -95,7 +96,8 @@ def main():
             '       the command (eg. master).')
       return 1
 
-    args.ref = sorted(versions, key=operator.itemgetter(0), reversed=True)[1]['name']
+    versions.sort(key=operator.itemgetter(0))
+    args.ref = versions[-1][1]['name']
 
   print('downloading zipball for "{}"...'.format(args.ref))
   archive = gh_api('repos/nodepy/nodepy-pm/zipball/{}'.format(args.ref), raw=True)
