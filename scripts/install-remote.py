@@ -36,6 +36,13 @@ except ImportError:
 
 parser = argparse.ArgumentParser()
 parser.add_argument('ref', nargs='?')
+parser.add_argument('-g', '--global', dest='g', action='store_true',
+  help='Install Node.py PM globally (in the user\'s home directory), rather '
+       'than into the root of the Python installation. Note that this option '
+       'has no effect inside a virtualenv.')
+parser.add_argument('-U', '--upgrade', action='store_true',
+  help='Overwrite the existing installation of Node.py PM.')
+parser.add_argument('-f', '--force', action='store_true')
 
 
 @contextlib.contextmanager
@@ -111,9 +118,12 @@ def main():
       print('fatal: scripts/install.py not found in downloaded archive.')
       return 1
     installer = os.path.join(dirname, installer)
-    args = nodepy.runtime.exec_args + [installer]
-    print('$', ' '.join(map(quote, args)))
-    return subprocess.call(args)
+    cmd = nodepy.runtime.exec_args + [installer]
+    cmd += ['--global'] if args.g else []
+    cmd += ['--force'] if args.force else []
+    cmd += ['--upgrade'] if args.upgrade else []
+    print('$', ' '.join(map(quote, cmd)))
+    return subprocess.call(cmd)
 
 
 sys.exit(main())
