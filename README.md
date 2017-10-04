@@ -10,4 +10,16 @@ and also installed alongside the Node.py runtime. If in any case you want
 to install the package manager manually, you can do so by using the
 `bootstrap.py` script.
 
-    $ nodepy ./bootstrap --root --upgrade
+It is suggested to install nodepy-pm using the remote install script available
+under https://nodepy.org/install-pm.
+
+    $ nodepy https://nodepy.org/install-pm
+
+If you want to install from this repository instead, clone it and run
+
+    $ nodepy ./scripts/install
+
+During development, it might be desirable to install nodepy-pm locally in
+editable (development) mode.
+
+    $ nodepy ./scripts/install -le
