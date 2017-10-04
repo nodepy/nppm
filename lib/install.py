@@ -44,17 +44,12 @@ import refstring from './refstring'
 import pathutils from './util/pathutils'
 import brewfix from './brewfix'
 import PackageLifecycle from './package-lifecycle'
-import { PACKAGE_MANIFEST, MODULES_DIRECTORY,
-         get_directories, get_module_dist_info } from './env'
+import env, { PACKAGE_MANIFEST } from './env'
 import { parse as parse_manifest } from './manifest'
 import { PackageManifest, InvalidPackageManifest } from './manifest'
 
-PACKAGE_LINK = '.nodepy-link'
-NPPM_INSTALLED_FILES = 'installed-files.txt'
-
-
 default_exclude_patterns = [
-    '.DS_Store', '.svn/*', '.git*', MODULES_DIRECTORY + '/*',
+    '.DS_Store', '.svn/*', '.git*', env.MODULES_DIRECTORY + '/*',
     '*.pyc', '*.pyo', 'dist/*']
 
 
@@ -129,7 +124,7 @@ class Installer:
     self.pip_use_target_option = pip_use_target_option
     self.recursive = recursive
     self.verbose = verbose
-    self.dirs = get_directories(install_location)
+    self.dirs = env.get_directories(install_location)
     self.dirs['reference_dir'] = os.path.dirname(self.dirs['packages'])
     self.script = _script.ScriptMaker(self.dirs['bin'], self.install_location)
     self.ignore_installed = False
@@ -218,7 +213,7 @@ class Installer:
     on failure.
     """
 
-    link_fn = os.path.join(directory, PACKAGE_LINK)
+    link_fn = os.path.join(directory, env.LINK_FILE)
     if os.path.isfile(link_fn):
       with open(link_fn, 'r') as fp:
         manifest_fn = os.path.join(fp.read().rstrip('\n'), PACKAGE_MANIFEST)
@@ -252,10 +247,10 @@ class Installer:
       print('Error: pre-uninstall script failed.')
       return False
 
-    filelist_fn = os.path.join(directory, NPPM_INSTALLED_FILES)
+    filelist_fn = os.path.join(directory, env.INSTALLED_FILES)
     installed_files = []
     if not os.path.isfile(filelist_fn):
-      print('  Warning: No `{}` found in package directory'.format(NPPM_INSTALLED_FILES))
+      print('  Warning: No `{}` found in package directory'.format(env.INSTALLED_FILES))
     else:
       with open(filelist_fn, 'r') as fp:
         for line in fp:
@@ -391,7 +386,7 @@ class Installer:
 
       # Important to use this function from within the updated pythonpath context.
       for dep_name in deps:
-        self.installed_python_libs[dep_name] = get_module_dist_info(dep_name)
+        self.installed_python_libs[dep_name] = env.get_module_dist_info(dep_name)
 
     return True
 
@@ -507,8 +502,8 @@ class Installer:
       _makedirs(target_dir)
       if develop:
         # Create a link file that contains the path to the actual package directory.
-        print('  Creating {} to "{}"...'.format(PACKAGE_LINK, directory))
-        linkfn = os.path.join(target_dir, PACKAGE_LINK)
+        print('  Creating {} to "{}"...'.format(env.LINK_FILE, directory))
+        linkfn = os.path.join(target_dir, env.LINK_FILE)
         with open(linkfn, 'w') as fp:
           fp.write(os.path.abspath(directory))
         installed_files.append(linkfn)
@@ -540,7 +535,7 @@ class Installer:
             script_name, filename, self.dirs['reference_dir'])
 
     # Write down the names of the installed files.
-    with open(os.path.join(target_dir, NPPM_INSTALLED_FILES), 'w') as fp:
+    with open(os.path.join(target_dir, env.INSTALLED_FILES), 'w') as fp:
       for fn in installed_files:
         fp.write(fn)
         fp.write('\n')

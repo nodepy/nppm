@@ -42,12 +42,12 @@ import logger from './logger'
 import _install from './install'
 import _manifest from './manifest'
 import {RegistryClient, get_package_archive_name} from './registry'
-import {PACKAGE_MANIFEST, PROGRAM_DIRECTORY} from './env'
+import env from './env'
 
 
 def find_nearest_modules_directory(path):
   for path in nodepy.utils.path.upiter(path):
-    path = path.joinpath(PROGRAM_DIRECTORY)
+    path = path.joinpath(env.PROGRAM_DIRECTORY)
     if path.is_dir():
       return path
   return None
@@ -62,10 +62,10 @@ class PackageLifecycle(object):
     directories and returns it. Returns #None if no file can be found.
     """
 
-    for directory in nodepy.upiter_directory(path):
-      fn = os.path.join(directory, PACKAGE_MANIFEST)
-      if os.path.isfile(fn):
-        return fn
+    for directory in nodepy.utils.path.upiter(path):
+      fn = directory.joinpath(env.PACKAGE_MANIFEST)
+      if fn.is_file():
+        return str(fn)
 
   def __init__(self, directory='.', dist_dir=None, manifest=None, allow_no_manifest=False):
     if manifest is None:
@@ -73,7 +73,7 @@ class PackageLifecycle(object):
         dist_dir = os.path.join(directory, 'dist')
       fn = self.find_package_json(directory)
       if not fn and not allow_no_manifest:
-        print('Error: {} not found'.format(PACKAGE_MANIFEST))
+        print('Error: {} not found'.format(env.PACKAGE_MANIFEST))
         exit(1)
       if fn:
         try:
@@ -155,9 +155,9 @@ class PackageLifecycle(object):
   def run(self, script, args, script_only=False):
     modules_dir = find_nearest_modules_directory(pathlib.Path.cwd())
     if modules_dir:
-      bindir = str(modules_dir.parent.joinpath(PROGRAM_DIRECTORY))
+      bindir = str(modules_dir.parent.joinpath(env.PROGRAM_DIRECTORY))
     else:
-      bindir = _install.get_directories('local')['bin']
+      bindir = env.get_directories('local')['bin']
     oldpath = os.environ.get('PATH', '')
     os.environ['PATH'] = bindir + os.pathsep + oldpath
     try:

@@ -41,7 +41,7 @@ import logger from './lib/logger'
 import _install from './lib/install'
 import {RegistryClient} from './lib/registry'
 import PackageLifecycle from './lib/package-lifecycle'
-import {PACKAGE_MANIFEST, is_virtualenv, get_module_dist_info} from './lib/env'
+import env, {PACKAGE_MANIFEST} from './lib/env'
 
 __version__ = module.package.payload['package']['version']
 VERSION = "{} [{}]".format(__version__, nodepy.main.VERSION)
@@ -61,7 +61,7 @@ def get_install_location(global_, root):
   if global_ and root:
     error('-g,--global and --root can not be used together')
   elif global_:
-    if is_virtualenv():
+    if env.is_virtualenv():
       print('Note: detected virtual environment, upgrading -g,--global to --root')
       return 'root'
     return 'global'
@@ -486,7 +486,7 @@ def bin(global_, root, pip):
   """
 
   location = get_install_location(global_, root)
-  dirs = _install.get_directories(location)
+  dirs = env.get_directories(location)
   if pip:
     print(dirs['pip_bin'])
   else:
@@ -502,7 +502,7 @@ def dirs(global_, root):
   """
 
   location = get_install_location(global_, root)
-  dirs = _install.get_directories(location)
+  dirs = env.get_directories(location)
   print('Packages:\t', dirs['packages'])
   print('Bin:\t\t', dirs['bin'])
   print('Pip Prefix:\t', dirs['pip_prefix'])

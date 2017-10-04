@@ -5,13 +5,9 @@
   The <a href="https://github.com/nodepy/nodepy">Node.py</a> Package Manager.
 </p>
 
-**nodepy-pm** is the Node.py package manager. It is developed, released
-and also installed alongside the Node.py runtime. If in any case you want
-to install the package manager manually, you can do so by using the
-`bootstrap.py` script.
-
-It is suggested to install nodepy-pm using the remote install script available
-under https://nodepy.org/install-pm.
+**nodepy-pm** is the Node.py package manager. It is suggested to install
+nodepy-pm using the remote install script available at
+https://nodepy.org/install-pm.
 
     $ nodepy https://nodepy.org/install-pm
 
