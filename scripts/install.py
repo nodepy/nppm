@@ -22,6 +22,8 @@ import brewfix from '../lib/brewfix'
 import { get_directories } from '../lib/env'
 
 parser = argparse.ArgumentParser()
+parser.add_argument('-l', '--local', action='store_true',
+  help='Install Node.py PM locally instead.')
 parser.add_argument('-g', '--global', dest='g', action='store_true',
   help='Install Node.py PM globally (in the user\'s home directory), rather '
        'than into the root of the Python installation. Note that this option '
@@ -43,7 +45,11 @@ def read_proc(proc, encoding=None, prefix=''):
 
 def main():
   args = parser.parse_args()
-  dirs = get_directories('global' if args.g else 'root')
+  if args.local and args.g:
+    print('fatal: -l, --local and -g, --global can not be mixed')
+    return 1
+
+  dirs = get_directories('local' if args.local else ('global' if args.g else 'root'))
 
   print("installing nodepy-pm Pip dependencies...")
   cmd = ['--prefix', dirs['pip_prefix']]

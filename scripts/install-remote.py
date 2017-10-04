@@ -36,6 +36,8 @@ except ImportError:
 
 parser = argparse.ArgumentParser()
 parser.add_argument('ref', nargs='?')
+parser.add_argument('-l', '--local', action='store_true',
+  help='Install Node.py PM locally instead.')
 parser.add_argument('-g', '--global', dest='g', action='store_true',
   help='Install Node.py PM globally (in the user\'s home directory), rather '
        'than into the root of the Python installation. Note that this option '
@@ -119,6 +121,7 @@ def main():
       return 1
     installer = os.path.join(dirname, installer)
     cmd = nodepy.runtime.exec_args + [installer]
+    cmd += ['--local'] if args.local else []
     cmd += ['--global'] if args.g else []
     cmd += ['--force'] if args.force else []
     cmd += ['--upgrade'] if args.upgrade else []
