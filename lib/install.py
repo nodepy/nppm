@@ -299,46 +299,48 @@ class Installer:
     """
 
     install_deps = []
-    for name, version in deps.items():
+    for name, dep in deps.items():
       try:
-        dep = self.find_package(name)
+        have_package = self.find_package(name)
       except PackageNotFound as exc:
-        install_deps.append((name, version))
+        install_deps.append((name, dep))
       else:
-        if version.type == 'version':
-          if not version.sel(dep.version):
+        if dep.type == 'registry':
+          if not dep.version(have_package.version):
             print('  Warning: Dependency "{}@{}" unsatisfied, have "{}" installed'
-                .format(name, version, dep.identifier))
+                .format(name, version, have_package.identifier))
           else:
             print('  Skipping satisfied dependency "{}@{}", have "{}" installed'
-                .format(name, version, dep.identifier))
+                .format(name, version, have_package.identifier))
         else:
           # Must be a Git URL or a relative path.
-          print('  Skipping dependency "{}" from URL "{}", have "{}" '
-              'installed'.format(name, version, dep.identifier))
-          if self.recursive:
-            self.install_dependencies_for(dep)
+          print('  Skipping "{}" dependency, have "{}" installed'
+            .format(name, dep.type, have_package.identifier))
+        if self.recursive:
+          self.install_dependencies_for(have_package)
 
     if not install_deps:
       return True
 
-    depfmt = ', '.join(refstring.join(n, version=v) for (n, v) in install_deps)
-    print('  Installing dependencies:', depfmt)
-    for name, version in install_deps:
-      if version.type == 'git':
-        if not self.install_from_git(version.url)[0]:
+    for name, dep in install_deps:
+      print('  Installing "{}" ({})'.format(name, dep))
+      if dep.type == 'registry':
+        # TODO: Pass `private` and `registry` to install_from_registry()
+        if not self.install_from_registry(name, dep.version)[0]:
           return False
-      elif version.type == 'path':
-        path = version.path
+      elif dep.type == 'git':
+        # TODO: Pass `ref`, `recursive` and `private to install_from_git().
+        if not self.install_from_git(version['git'])[0]:
+          return False
+      elif dep.type == 'path':
+        path = dep.path
         if not os.path.isabs(path):
           path = os.path.join(current_dir, path)
-        if not self.install_from_directory(path, version.develop)[0]:
-          return False
-      elif version.type == 'version':
-        if not self.install_from_registry(name, version.sel)[0]:
+        # TODO: Pass `private` to install_from_directory()
+        if not self.install_from_directory(path, dep.link)[0]:
           return False
       else:
-        raise RuntimeError('unsupported PackageVersion: {!r}'.format(version))
+        raise RuntimeError('unexpected dependency data: "{}" -> {!r}'.format(name, dep))
 
     return True
 

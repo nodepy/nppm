@@ -18,6 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+import collections
 import jsonschema
 import os
 import re
@@ -38,37 +39,17 @@ url_regex = re.compile(
   r'(?:/?|[/?]\S+)$', re.IGNORECASE)
 
 
-class PackageVersion:
-  """
-  This class represents a package version, which can be either a
-  #semver.Version(), a Git URL or a relative path. For relative paths,
-  editable installations are possible.
-  """
+class RegistryDependency(collections.namedtuple('C', 'version registry private')):
+  type = 'registry'
 
-  def __init__(self, name, selector):
-    selector = selector.strip()
-    self.name = name
-    self._selrepr = selector
-    self.develop = selector.startswith('-e')
-    if self.develop or selector.startswith('.'):
-      if self.develop:
-        selector = selector[2:].lstrip()
-      self.path = selector
-      self.type = 'path'
-    elif selector.startswith('git+'):
-      self.url = selector[4:]
-      self.type = 'git'
-    else:
-      self.sel = semver.Selector(selector)
-      self.type = 'version'
+class GitDependency(collections.namedtuple('C', 'url ref recursive private')):
+  type = 'git'
 
-  def __repr__(self):
-    return '<PackageVersion {}="{}">'.format(self.name, self._selrepr)
+class PathDependency(collections.namedtuple('C', 'path link private')):
+  type = 'path'
 
-  def __str__(self):
-    return self._selrepr
 
-class PackageManifest:
+class PackageManifest(object):
   """
   This class describes a `nodepy-package.toml` package manifest in memory.
   Check out the #schema for a description of supported fields. Additional
@@ -112,7 +93,40 @@ class PackageManifest:
       },
       "dependencies": {
         "type": "object",
-        "additionalProperties": {"type": "string"}
+        # TODO: These do not seem to be checked.
+        "additionalProperties": {"anyOf": [
+          {"type": "string"},
+          {
+            "type": "object",
+            "properties": {
+              "git": {"type": "string"},
+              "ref": {"type": "string"},
+              "recursive": {"type": "boolean"},
+              "private": {"type": "boolean"}
+            },
+            "additionalProprties": False,
+            "required": ["git"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "path": {"type": "string"},
+              "link": {"type": "boolean"},
+              "private": {"type": "boolean"}
+            },
+            "additionalProprties": False,
+            "required": ["path"]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "version": {"type": "string"},
+              "registry": {"type": "string"}
+            },
+            "additionalProprties": False,
+            "required": ["version"]
+          }
+        ]}
       },
       "python_dependencies": {
         "type": "object",
@@ -272,7 +286,22 @@ def parse_dict(data, filename=None, directory=None, copy=True):
 
   dependencies = {}
   for dep, sel in data.get('dependencies', {}).items():
-    dependencies[dep] = PackageVersion(dep, sel)
+    if isinstance(sel, str):
+      sel = {'version': sel}
+    if 'version' in sel:
+      dep_data = RegistryDependency(semver.Selector(sel['version']),
+                                    sel.get('registry'),
+                                    sel.get('private', False))
+    elif 'git' in sel:
+      dep_data = GitDependency(sel['git'], sel.get('ref', None),
+                               sel.get('recursive', True),
+                               sel.get('private', False))
+    elif 'path' in sel:
+      dep_data = PathDependency(sel['path'], sel.get('link', False),
+                                sel.get('private', False))
+    else:
+      raise RuntimeError('jsonschema should\'ve validated this')
+    dependencies[dep] = dep_data
   kwargs['dependencies'] = dependencies
   kwargs['python_dependencies'] = data.get('python_dependencies', {})
 
@@ -281,11 +310,10 @@ def parse_dict(data, filename=None, directory=None, copy=True):
     engines[eng] = semver.Selector(sel)
   kwargs['engines'] = engines
 
-  data.setdefault('engines', {})
   engine_props = {}
   for key in tuple(data.keys()):
     if key not in PackageManifest.schema['properties']:
-      if key not in data['engines']:
+      if key not in engines:
         msg = 'unexpected additional field: "{}"'
         raise InvalidPackageManifest(filename, msg.format(key))
       engine_props[key] = data.pop(key)

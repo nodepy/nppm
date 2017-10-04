@@ -160,40 +160,92 @@ myapp = "./cli.py"
 
 ### `[dependencies]`
 
-*Optional,* An object that specifies the dependencies of the package. Every
-dependency can be specified by a semver string, or an inline-table with
-additional details.
+*Optional.* An object that specifies the dependencies of the package. Every
+dependency can be specified by a semver string, or a table with additional
+details.
+
+Dependencies can be selected based on a the current environment by using the
+`cfg(...)` filter, which is appended as a sub-table. More on the `cfg(...)`
+filter at the end of this document.
 
 ```toml
 [dependencies]
-@nodepy/nodepy-pm = "~0.1.0"
-@myscope/myutils = { path = "./subpkgs/myutils", link = True }
-some_package = { git = "https://github.com/someorg/some_package.git", ref = "v6.3.0" }
-@mycompany/companytools = { version = "^4.2.0", registry = "https://nodepy-registry.intranet/" }
-```
 
-Development dependencies can be specified by adding a filter.
-
-```toml
 [dependencies.'cfg(development)']
-@NiklasRosenstein/yassg = "~0.6.0"
 ```
 
-You can also use normal tables for non-standard package information.
+#### Dependency Types
+
+##### Registry Reference
+
+Registry references are resolved across all configured registries. Simply by
+assigning a version-selector string to the dependency name in the TOML
+configuration creates such a registry-dependency reference.
 
 ```toml
-[dependencies.'@myscope/myutils']
-path = "./subpkgs/myutils"
-link = true
+[dependencies]
+utils = "~0.11.0"
 
-[dependencies.some_package]
-git = "https://github.com/someorg/some_package.git"
-ref = "v6.3.0"
-
-[dependencies.'@mycompany/companytools']
-version = version = "^4.2.0"
-registry = "https://nodepy-registry.intranet/"
+[dependencies.'@mycompany/toolbox']
+version = "~1.4.2"
+registry = "https://mycompany-intranet.com/nodepy-registry"
 ```
+
+_Options_
+
+* `version`: The SemVer selector for the dependency.
+* `registry`: An optional URL pointing to a Node.py package registry. If
+  specified, the default registries are not checked.
+* `private`: Defaults to `false`. If `true`, the dependency will be installed
+  in the local `.nodepy_modules/` directory rather than being placed into the
+  root modules directory. Usually, dependencies are only installed privately
+  if a version collision is detected. Example if `utils` was marked private:
+
+    ```
+    .nodepy_modules/
+      myproject/
+        .nodepy_modules/
+          utils/
+    ```
+
+##### Git Repository Reference
+
+Packages can be installed from a Git repository by specifying the repository
+URL and a reference to clone from. Note that SHA refs are not supported.
+
+```toml
+[dependencies.utils]
+git = "https://github.com/me/nodepy-utils"
+ref = "v0.11.0"
+```
+
+_Options_
+
+* `git`: The Git repository clone URL.
+* `ref`: The Git ref to clone.
+* `recursive`: Clone the repository recursively. Defaults to `true`.
+* `private`: See above.
+
+##### Local Reference
+
+Packages can be installed from a path on the filesystem. The packages can also
+be installed in *develop* mode where a link is created to the original package
+directory rather than copying all files into the modules directory.
+
+```toml
+[dependencies.utils]
+path = "./submodules/utils"
+link = true
+```
+
+_Options_
+
+* `path`: The path to install the dependency from. A relative path is resolved
+  from the package's root directory (independent from `[package].resolve_root`).
+* `link`: If `true`, the package will be linked into the modules directory
+  rather than performing a normal installation. This is equal to installing
+  the package using the `-e, --develop` option via `nodepy-pm`.
+* `private`: See above.
 
 ### `[python_dependencies]`
 
