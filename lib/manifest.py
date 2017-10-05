@@ -105,7 +105,6 @@ class PackageManifest(object):
           "name": {"type": "string"},
           "version": {"type": "string"},
           "description": {"type": "string"},
-          "author": {"type": "string"},
           "repository": {"type": "string"},
           "license": {"type": "string"},
           "private": {"type": "boolean"},
@@ -114,46 +113,61 @@ class PackageManifest(object):
         },
         "required": ["name", "version"]
       },
+      "authors": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "properties": {
+            "email": {"type": "string"},
+            "homepage": {"type": "string"}
+          }
+        }
+      },
       "dependencies": {
         "type": "object",
-        # TODO: These do not seem to be checked.
-        "additionalProperties": {"anyOf": [
-          {"type": "string"},
-          {
+        "properties": {
+          "nodepy": {
             "type": "object",
-            "properties": {
-              "git": {"type": "string"},
-              "ref": {"type": "string"},
-              "recursive": {"type": "boolean"},
-              "private": {"type": "boolean"}
-            },
-            "additionalProprties": False,
-            "required": ["git"]
+            # TODO: These do not seem to be checked.
+            "additionalProperties": {"anyOf": [
+              {"type": "string"},
+              {
+                "type": "object",
+                "properties": {
+                  "git": {"type": "string"},
+                  "ref": {"type": "string"},
+                  "recursive": {"type": "boolean"},
+                  "private": {"type": "boolean"}
+                },
+                "additionalProprties": False,
+                "required": ["git"]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "path": {"type": "string"},
+                  "link": {"type": "boolean"},
+                  "private": {"type": "boolean"}
+                },
+                "additionalProprties": False,
+                "required": ["path"]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "version": {"type": "string"},
+                  "registry": {"type": "string"}
+                },
+                "additionalProprties": False,
+                "required": ["version"]
+              }
+            ]}
           },
-          {
+          "python": {
             "type": "object",
-            "properties": {
-              "path": {"type": "string"},
-              "link": {"type": "boolean"},
-              "private": {"type": "boolean"}
-            },
-            "additionalProprties": False,
-            "required": ["path"]
-          },
-          {
-            "type": "object",
-            "properties": {
-              "version": {"type": "string"},
-              "registry": {"type": "string"}
-            },
-            "additionalProprties": False,
-            "required": ["version"]
+            "additionalProperties": {"type": "string"}
           }
-        ]}
-      },
-      "python_dependencies": {
-        "type": "object",
-        "additionalProperties": {"type": "string"}
+        }
       },
       "scripts": {
         "type": "object",
@@ -308,7 +322,7 @@ def parse_dict(data, filename=None, directory=None, copy=True):
       kwargs[k] = data['package'][k]
 
   dependencies = []
-  for dep, sel in data.get('dependencies', {}).items():
+  for dep, sel in data.get('dependencies', {}).get('nodepy', {}).items():
     if isinstance(sel, str):
       sel = {'version': sel}
     if 'version' in sel:
@@ -326,7 +340,7 @@ def parse_dict(data, filename=None, directory=None, copy=True):
       raise RuntimeError('jsonschema should\'ve validated this')
     dependencies.append(dep_data)
   kwargs['dependencies'] = dependencies
-  kwargs['python_dependencies'] = data.get('python_dependencies', {})
+  kwargs['python_dependencies'] = data.get('dependencies', {}).get('python', {})
 
   engines = {}
   for eng, sel in data.get('engines', {}).items():

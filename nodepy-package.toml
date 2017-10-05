@@ -4,14 +4,16 @@ version = "0.1.0"
 license = "MIT"
 description = "The Node.py Package Manager."
 repository = "https://github.com/nodepy/nodepy"
-authors = [ "Niklas Rosenstein <rosensteinniklas@gmail.com>" ]
 main = "index"
-engines = [ "nodepy >=0.1.0", "python >=2.7.0 || >=3.3.0" ]
 
-[bin]
-"nodepy${py}-pm" = "./index.py"
+[authors]
+"Niklas Rosenstein" = { email = "rosensteinniklas@gmail.com" }
 
-[python_dependencies]
+[engines]
+nodepy = ">=0.1.0"
+python = ">=2.7.0 || >=3.3.0"
+
+[dependencies.python]
 appdirs = ">=1.4.2"
 click = ">=6.7"
 distlib = ">=0.2.4"
@@ -19,3 +21,6 @@ hammock = ">=0.2.4"
 jsonschema = ">=2.6.0"
 requests = ">=2.13.0"
 six = ">=1.11.0"
+
+[bin]
+"nodepy${py}-pm" = "./index.py"

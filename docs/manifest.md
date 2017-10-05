@@ -158,7 +158,7 @@ that is then executed as the main module when the script is executed.
 myapp = "./cli.py"
 ```
 
-### `[dependencies]`
+### `[dependencies.nodepy]`
 
 *Optional.* An object that specifies the dependencies of the package. Every
 dependency can be specified by a semver string, or a table with additional
@@ -169,9 +169,9 @@ Dependencies can be selected based on a the current environment by using the
 filter at the end of this document.
 
 ```toml
-[dependencies]
+[dependencies.nodepy]
 
-[dependencies.'cfg(development)']
+[dependencies.nodepy.'cfg(development)']
 ```
 
 #### Dependency Types
@@ -183,10 +183,10 @@ assigning a version-selector string to the dependency name in the TOML
 configuration creates such a registry-dependency reference.
 
 ```toml
-[dependencies]
+[dependencies.nodepy]
 utils = "~0.11.0"
 
-[dependencies.'@mycompany/toolbox']
+[dependencies.nodepy.'@mycompany/toolbox']
 version = "~1.4.2"
 registry = "https://mycompany-intranet.com/nodepy-registry"
 ```
@@ -214,7 +214,7 @@ Packages can be installed from a Git repository by specifying the repository
 URL and a reference to clone from. Note that SHA refs are not supported.
 
 ```toml
-[dependencies.utils]
+[dependencies.nodepy.utils]
 git = "https://github.com/me/nodepy-utils"
 ref = "v0.11.0"
 ```
@@ -233,7 +233,7 @@ be installed in *develop* mode where a link is created to the original package
 directory rather than copying all files into the modules directory.
 
 ```toml
-[dependencies.utils]
+[dependencies.nodepy.utils]
 path = "./submodules/utils"
 link = true
 ```
@@ -247,19 +247,19 @@ _Options_
   the package using the `-e, --develop` option via `nodepy-pm`.
 * `private`: See above.
 
-### `[python_dependencies]`
+### `[dependencies.python]`
 
-*Optional.* Similar to the `[dependencies]` table, but it specifies actual
-Python modules that the package requires. These modules can be installed
-via Node.py PM using [Pip].
+*Optional.* Similar to the `[dependencies.nodepy]` table, but it specifies
+actual Python modules that the package requires. These modules can be
+installed via Node.py PM using [Pip].
 
 ```toml
-[python_dependencies]
+[dependencies.python]
 Flask = "==0.12"
 Flask-HTTPAuth = "==3.2.2"
 mongoengine = "==0.11.0"
 
-[python_dependencies.'cfg(development)']
+[dependencies.python.'cfg(development)']
 mkdocs = ">=0.16.1"
 ```
 
