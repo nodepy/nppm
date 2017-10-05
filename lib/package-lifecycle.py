@@ -62,6 +62,8 @@ class PackageLifecycle(object):
     directories and returns it. Returns #None if no file can be found.
     """
 
+    if isinstance(path, str):
+      path = pathlib.Path(path)
     for directory in nodepy.utils.path.upiter(path):
       fn = directory.joinpath(env.PACKAGE_MANIFEST)
       if fn.is_file():

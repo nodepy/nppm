@@ -19,6 +19,7 @@
 # THE SOFTWARE.
 
 from __future__ import print_function
+from nodepy.vendor import toml
 from operator import itemgetter
 from six.moves import input
 
@@ -31,7 +32,6 @@ import os
 import pip.req
 import six
 import sys
-import toml
 
 import manifest from './lib/manifest'
 import semver from './lib/semver'
@@ -305,21 +305,18 @@ def install(packages, upgrade, develop, global_, root, ignore_installed,
 
   installer.relink_pip_scripts()
 
+  if (save or save_dev):
+    deps = manifest_data.setdefault('dependencies', {})
   if (save or save_dev) and save_deps:
-    field = 'dependencies' if save else "dependencies.'cfg(development)'"
-    data = manifest_data.get(field, {})
-    print('Saving {}...'.format(field))
+    data = deps.setdefault('nodepy', {})
+    if save_dev: data = data.setdefault(".'cfg(development)'", {})
     for key, value in save_deps:
       print('  "{}": "{}"'.format(key, value))
       data[key] = value
 
-    data = sorted(data.items(), key=itemgetter(0))
-    manifest_data[field] = collections.OrderedDict(data)
-
   if (save or save_dev) and python_deps:
-    field = 'python_dependencies' if save else "python_dependencies'cfg(development)'"
-    print("Saving {}...".format(field))
-    data = manifest_data.get(field, {})
+    data = deps.setdefault('python', {})
+    if save_dev: data = data.setdefault(".'cfg(development)'", {})
     for pkg_name, dist_info in installer.installed_python_libs.items():
       if not dist_info:
         print('warning: could not find .dist-info of module "{}"'.format(pkg_name))
@@ -329,10 +326,6 @@ def install(packages, upgrade, develop, global_, root, ignore_installed,
         data[dist_info['name']] = '>=' + dist_info['version']
         print('  "{}": "{}"'.format(dist_info['name'], dist_info['version']))
 
-    # Sort the data and insert it back into the package manifest.
-    data = sorted(data.items(), key=itemgetter(0))
-    manifest_data[field] = collections.OrderedDict(data)
-
   if save_ext and save_deps:
     extensions = manifest_data.setdefault('package', {}).setdefault('extensions', [])
     for ext_name in sorted(map(itemgetter(0), save_deps)):
@@ -341,7 +334,7 @@ def install(packages, upgrade, develop, global_, root, ignore_installed,
 
   if (save or save_dev) and (save_deps or python_deps):
     with open(manifest_filename, 'w') as fp:
-      toml.dump(manifest_data, fp)
+      toml.dump(manifest_data, fp, preserve=True)
 
   print()
   return 0

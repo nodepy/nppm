@@ -13,6 +13,12 @@ main = "index"
 nodepy = ">=0.1.0"
 python = ">=2.7.0 || >=3.3.0"
 
+[bin]
+"nodepy${py}-pm" = "./index.py"
+
+[dist]
+include_files = [ "lib/**", "scripts/**", "index.py", "LICENSE", "README.md",]
+
 [dependencies.python]
 appdirs = ">=1.4.2"
 click = ">=6.7"
@@ -21,6 +27,3 @@ hammock = ">=0.2.4"
 jsonschema = ">=2.6.0"
 requests = ">=2.13.0"
 six = ">=1.11.0"
-
-[bin]
-"nodepy${py}-pm" = "./index.py"

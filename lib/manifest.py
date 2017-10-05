@@ -18,6 +18,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+from nodepy.vendor import toml
+
 import collections
 import jsonschema
 import os
@@ -25,7 +27,6 @@ import pip
 import re
 import six
 import string
-import toml
 
 import semver from './semver'
 import refstring from './refstring'
