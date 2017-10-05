@@ -112,60 +112,80 @@ def version():
   print(VERSION)
 
 
-@main.command()
+@main.command(help='''
+  Install Node.py and/or Python packages. If no packages are specified, the
+  dependencies of the current Node.py package are installed and the package
+  is installed locally in develop mode (as a link).
+
+  To specify a Python package, prefix the package name with a tilde (~)
+  character. Example:
+
+  \b
+    nodepy-pm install --save @nodepy/werkzeug-reloader-patch ~Flask
+  ''')
 @click.argument('packages', nargs=-1)
-@click.option('-e', '--develop', help='Install a package in development mode.', multiple=True)
-@click.option('-py', '--python', help='Specify a package to install via Pip.', multiple=True)
-@click.option('-epy', '--develop-python', help='Specify a package to install via Pip in develop mode.', multiple=True)
 @click.option('-U', '--upgrade', is_flag=True)
-@click.option('-g', '--global/--local', 'global_', is_flag=True)
+@click.option('-e', '--develop', is_flag=True,
+  help='Install the specified packages in develop mode (as link). Applies '
+       'only to packages installed from a local directory.')
+@click.option('-g', '--global/--local', 'global_', is_flag=True,
+  help='Install into the user\'s home directory (platform dependent). '
+       'Implies --private (use --no-private to prevent this behaviour).')
+@click.option('--root', is_flag=True,
+  help='Install into the Python\'s root directory (platform dependent). '
+       'Implies --private (use --no-private to prevent this behaviour).')
 @click.option('-I', '--ignore-installed', is_flag=True,
-    help='Passes the same option to Pip.')
+  help='Passed to Pip when installing Python dependencies. Ignores '
+       'packages that are already installed in other directories.')
 @click.option('-P', '--packagedir', default='.',
-    help='The directory to read/write the nodepy-package.toml to/from.')
-@click.option('--root', is_flag=True)
-@click.option('--recursive', is_flag=True,
-    help='Satisfy dependencies of already satisfied dependencies.')
+  help='The directory to read/write the nodepy-package.toml to or from.')
+@click.option('-R', '--recursive', is_flag=True,
+  help='Satisfy dependencies of already satisfied dependencies.')
 @click.option('--pip-separate-process', is_flag=True)
 @click.option('--pip-use-target-option', is_flag=True,
-    help='Use --target instead of --prefix when installing dependencies '
-      'via Pip. This is to circumvent a Bug in Pip where installing with '
-      '--prefix fails. See nodepy/ppym#9.')
+  help='Use --target instead of --prefix when installing dependencies '
+       'via Pip. This is to circumvent a Bug in Pip where installing with '
+       '--prefix fails. See nodepy/ppym#9.')
 @click.option('--info', is_flag=True)
 @click.option('--dev/--production', 'dev', default=None,
-    help='Specify whether to install development dependencies or not. The '
-      'default value depends on the installation type (--dev when no packages '
-      'are specified, --production otherwise).')
+  help='Specify whether to install development dependencies or not. The '
+       'default value depends on the installation type (--dev when no packages '
+       'are specified, otherwise determined from the NODEPY_ENV variable).')
 @click.option('--save', is_flag=True,
-    help='Save the installed dependencies into the "dependencies" or '
-      '"python-dependencies" field, respectively.')
+  help='Save the installed dependencies into the "dependencies" or '
+       '"python-dependencies" field, respectively.')
 @click.option('--save-dev', is_flag=True,
-    help='Save the installed dependencies into the "dev-dependencies" or '
-      '"dev-python-dependencies" field, respectively.')
+  help='Save the installed dependencies into the "dev-dependencies" or '
+       '"dev-python-dependencies" field, respectively.')
 @click.option('--save-ext', is_flag=True,
-    help='Save the installed dependencies into the "extensions" field. '
-      'Installed Python modules are ignored for this one. Implies --save')
+  help='Save the installed dependencies into the "extensions" field. '
+       'Installed Python modules are ignored for this one. Implies --save.')
 @click.option('-v', '--verbose', is_flag=True)
 @click.option('-F', '--from', 'registry',
-    help='Specify explicitly which registry to look for Node.py packages '
-      'with. If not specified, all registries will be checked unless they '
-      'specify the `default=false` option.')
+  help='Specify explicitly which registry to look for Node.py packages '
+       'with. If not specified, all registries will be checked unless they '
+       'specify the `default=false` option.')
 @click.option('-f', '--force', is_flag=True,
-    help='Overwrite existing installed packages if it becomes necessary (eg. '
-      'when a package link is broken, the package can no longer be found but '
-      'its install directory still exists).')
+  help='Overwrite existing installed packages if it becomes necessary (eg. '
+       'when a package link is broken, the package can no longer be found but '
+       'its install directory still exists).')
+@click.option('--private/--no-private', default=None,
+  help='Install the dependencies of specified packages as private '
+       'dependencies (resulting in a non-flat dependency tree by default). '
+       'Applies only to the dependencies specified on the command-line and '
+       'not recursively.')
 @exit_with_return
-def install(packages, develop, python, develop_python, upgrade, global_,
-            ignore_installed, packagedir, root, recursive, info, dev,
-            pip_separate_process, pip_use_target_option, save, save_dev,
-            save_ext, verbose, registry, force):
+def install(packages, upgrade, develop, global_, root, ignore_installed,
+            packagedir, recursive, pip_separate_process, pip_use_target_option,
+            info, dev, save, save_dev, save_ext, verbose, registry, force,
+            private):
   """
   Installs one or more Node.Py or Pip packages.
   """
 
   # FIXME: Validate registry URL as HTTPS.
 
-  packagefile = os.path.join(packagedir, PACKAGE_MANIFEST)
+  manifest_filename = os.path.join(packagedir, PACKAGE_MANIFEST)
 
   if save_ext:
     if save_dev:
@@ -179,26 +199,31 @@ def install(packages, develop, python, develop_python, upgrade, global_,
     print('Error: decide for either --save or --save-dev')
     return 1
   if save or save_dev:
-    if not os.path.isfile(packagefile):
-      print('Error: can not --save or --save-dev without a {}'.format(PACKAGE_MANIFEST))
+    if not os.path.isfile(manifest_filename):
+      print('Error: can not --save or --save-dev without "{}"'.format(PACKAGE_MANIFEST))
+      print('  You can use `nodepy-pm init` to create a package manifest.')
       return 1
-    with open(packagefile) as fp:
-      package_meta = json.load(fp, object_pairs_hook=collections.OrderedDict)
+    with open(manifest_filename) as fp:
+      manifest_data = toml.load(fp, _dict=collections.OrderedDict)
 
+  # If not packages are specified, we install the dependencies of the
+  # current package.
   if dev is None:
-    dev = not (packages or develop or python or develop_python)
+    dev = not packages
 
-  registry = RegistryClient.get(registry) if registry else None
+  # Initialize our installer utility.
   installer = get_installer(global_, root, upgrade, pip_separate_process,
-      pip_use_target_option, recursive, verbose, registry)
+      pip_use_target_option, recursive, verbose, registry=None)
   installer.ignore_installed = ignore_installed
   installer.force = force
+
   if info:
     for key in sorted(installer.dirs):
       print('{}: {}'.format(key, installer.dirs[key]))
     return 0
 
-  if not any((packages, develop, python, develop_python)):
+  # Install dependencies of the current packages.
+  if not packages:
     installer.upgrade = True
     success, _manifest = installer.install_from_directory('.', develop=True, dev=dev)
     if not success:
@@ -206,81 +231,95 @@ def install(packages, develop, python, develop_python, upgrade, global_,
     installer.relink_pip_scripts()
     return 0
 
-  save_deps = []
-  def handle_package(package, develop=False):
-    if package.startswith('git+'):
-      success, package_info = installer.install_from_git(package[4:])
-      if success:
-        save_deps.append((package_info[0], package))
-    elif os.path.isdir(package):
-      success = installer.install_from_directory(package, develop, dev=dev)[0]
-    elif os.path.isfile(package):
-      success = installer.install_from_archive(package, dev=dev)[0]
-    else:
-      ref = refstring.parse(package)
-      selector = ref.version or semver.Selector('*')
-      success, package_info = installer.install_from_registry(six.text_type(ref.package), selector, dev=dev)
-      if success:
-        save_deps.append((package_info[0], '~' + str(package_info[1])))
-    if not success:
-      error('Installation failed')
-
-  python_deps = {}
-  python_additional_install = []
-  def handle_python_package(package, develop=False):
-    package = os.path.expanduser(package)
-    if os.path.isdir(package) or os.path.isfile(package):
-      if develop:
-        python_additional_install.append('-e')
-      python_additional_install.append(package)
-    else:
-      try:
-        spec = pip.req.InstallRequirement.from_line(package)
-      except (pip.exceptions.InstallationError, pip._vendor.packaging.requirements.InvalidRequirement) as exc:
-        return error(exc)
-      if (save or save_dev) and not spec.req:
-        return error("'{}' is not something we can install via NPPM with --save/--save-dev".format(package[3:]))
-      if spec.req:
-        python_deps[spec.req.name] = str(spec.req.specifier)
+  # Parse the packages specified on the command-line.
+  pip_packages = []
+  npy_packages = []
+  for pkg in packages:
+    if pkg.startswith('~'):
+      pip_packages.append(manifest.PythonDependency(pkg[1:]))
+    elif pkg.startswith('git+'):
+      if '@' in pkg:
+        pkg, _, ref = pkg.rpartition('@')
       else:
-        if develop:
-          python_additional_install.append('-e')
-        python_additional_install.append(str(spec))
+        ref = None
+      npy_packages.append(manifest.GitDependency(None, pkg[4:], ref, True, private))
+    elif os.path.exists(pkg):
+      npy_packages.append(manifest.PathDependency(None, pkg, develop, private))
+    else:
+      ref = refstring.parse(pkg)
+      if ref.module or ref.member:
+        print('Error: invalid dependency reference:', ref)
+        return 1
+      npy_packages.append(manifest.RegistryDependency(
+        str(ref.package),
+        ref.version or semver.Selector('*'),
+        registry,
+        private
+      ))
 
-  # Parse and install Python packages.
-  for package in python:
-    handle_python_package(package)
-  for package in develop_python:
-    handle_python_package(package, develop=True)
-  if (python_deps or python_additional_install):
-    if not installer.install_python_dependencies(
-        python_deps, args=python_additional_install):
+  save_deps = []
+  python_deps = []
+
+  # Install Python dependencies.
+  python_deps = {}
+  python_additional = []
+  for pkg in pip_packages:
+    if (save or save_dev) and not pkg.req:
+      return error("'{}' is not something we can install via NPPM with --save/--save-dev".format(pkg.spec))
+    if pkg.req:
+      python_deps[pkg.name] = pkg.specifier
+    else:
+      python_additional.append(str(pkg.spec))
+  if (python_deps or python_additional):
+    if not installer.install_python_dependencies(python_deps, args=python_additional):
       print('Installation failed')
       return 1
 
-  # Parse and install Node.py packages.
-  for package in packages:
-    handle_package(package)
-  for package in develop:
-    handle_package(package, develop=True)
+  # Install Node.py dependencies.
+  installed_info = {}
+  for pkg in npy_packages:
+    if pkg.type == 'registry':
+      registry = RegistryClient(pkg.registry, pkg.registry) if pkg.registry else None
+      success, info = installer.install_from_registry(pkg.name, pkg.version, dev, registry)
+      if success:
+        assert info[0] == pkg.name, (info, pkg)
+        installed_info[pkg] = info
+    elif pkg.type == 'git':
+      success, info = installer.install_from_git(pkg.url, pkg.ref, pkg.recursive, pkg.private)
+      if success:
+        installed_info[pkg] = info
+    elif pkg.type == 'path':
+      if os.path.isfile(pkg.path):
+        if develop:
+          print('Warning: Can not install in develop mode from archive "{}"'
+            .format(pkg.path))
+        success, mnf = installer.install_from_archive(pkg.path, dev=dev)[0]
+      else:
+        success, mnf = installer.install_from_directory(pkg.path, develop, dev=dev)[0]
+      if success:
+        installed_info[pkg] = (mnf.name, mnf.version)
+    else:
+      raise RuntimeError('unexpected pkg type:', pkg)
+    if not success:
+      error('Installation failed')
 
   installer.relink_pip_scripts()
 
   if (save or save_dev) and save_deps:
-    field = 'dependencies' if save else 'dev-dependencies'
-    data = package_meta.get(field, {})
+    field = 'dependencies' if save else "dependencies.'cfg(development)'"
+    data = manifest_data.get(field, {})
     print('Saving {}...'.format(field))
     for key, value in save_deps:
       print('  "{}": "{}"'.format(key, value))
       data[key] = value
 
     data = sorted(data.items(), key=itemgetter(0))
-    package_meta[field] = collections.OrderedDict(data)
+    manifest_data[field] = collections.OrderedDict(data)
 
   if (save or save_dev) and python_deps:
-    field = 'python-dependencies' if save else 'dev-python-dependencies'
+    field = 'python_dependencies' if save else "python_dependencies'cfg(development)'"
     print("Saving {}...".format(field))
-    data = package_meta.get(field, {})
+    data = manifest_data.get(field, {})
     for pkg_name, dist_info in installer.installed_python_libs.items():
       if not dist_info:
         print('warning: could not find .dist-info of module "{}"'.format(pkg_name))
@@ -292,17 +331,17 @@ def install(packages, develop, python, develop_python, upgrade, global_,
 
     # Sort the data and insert it back into the package manifest.
     data = sorted(data.items(), key=itemgetter(0))
-    package_meta[field] = collections.OrderedDict(data)
+    manifest_data[field] = collections.OrderedDict(data)
 
   if save_ext and save_deps:
-    extensions = package_meta.setdefault('extensions', [])
+    extensions = manifest_data.setdefault('package', {}).setdefault('extensions', [])
     for ext_name in sorted(map(itemgetter(0), save_deps)):
       if ext_name not in extensions:
         extensions.append(ext_name)
 
   if (save or save_dev) and (save_deps or python_deps):
-    with open(packagefile, 'w') as fp:
-      json.dump(package_meta, fp, indent=2)
+    with open(manifest_filename, 'w') as fp:
+      toml.dump(manifest_data, fp)
 
   print()
   return 0

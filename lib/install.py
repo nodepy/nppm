@@ -321,11 +321,10 @@ class Installer:
       print('  Installing "{}" ({})'.format(name, dep))
       if dep.type == 'registry':
         # TODO: Pass `private` and `registry` to install_from_registry()
-        if not self.install_from_registry(name, dep.version)[0]:
+        if not self.install_from_registry(name, dep.version, private=dep.private, regs=dep.registry)[0]:
           return False
       elif dep.type == 'git':
-        # TODO: Pass `ref`, `recursive` and `private to install_from_git().
-        if not self.install_from_git(version['git'])[0]:
+        if not self.install_from_git(dep.url, dep.ref, dep.recursive, dep.private)[0]:
           return False
       elif dep.type == 'path':
         path = dep.path
@@ -563,13 +562,15 @@ class Installer:
     finally:
       _rmtree(directory)
 
-  def install_from_registry(self, package_name, selector, dev=False):
+  def install_from_registry(self, package_name, selector, dev=False, regs=None, private=False):
     """
     Install a package from a registry.
 
     # Returns
     (success, (package_name, package_version))
     """
+
+    # TODO: Handle `private` argument
 
     # Check if the package already exists.
     try:
@@ -585,8 +586,15 @@ class Installer:
             package.name, package.version))
         return True, (package.name, package.version)
 
+    if isinstance(regs, str):
+      regs = [_registry.RegistryClient(regs, regs)]
+    elif isinstance(regs, _registry.RegistryClient):
+      regs = [regs]
+    elif regs is None:
+      regs = self.reg
+
     print('Finding package matching "{}@{}"...'.format(package_name, selector))
-    for registry in self.reg:
+    for registry in regs:
       print('  Checking registry "{}" ({})...'.format(registry.name, registry.base_url), end=' ')
       try:
         info = registry.find_package(package_name, selector)
@@ -617,7 +625,7 @@ class Installer:
 
     return success, (package_name, info.version)
 
-  def install_from_git(self, url):
+  def install_from_git(self, url, ref=None, recursive=True, private=False):
     """
     Install a package from a Git repository. The package will first be cloned
     into a temporary directory, that be copied into the correct location and
@@ -627,8 +635,16 @@ class Installer:
     (success, (package_name, package_version))
     """
 
+    # TODO: Handle `private` argument
+
     dest = os.path.join(self.dirs['packages'], '.tmp')
-    res = subprocess.call(['git', 'clone', url, dest])
+    args = ['git', 'clone', url, dest]
+    if ref:
+      args += ['-b', ref]
+    if recursive:
+      args += ['--recursive']
+    print('Cloning repository: $', args)
+    res = subprocess.call(args)
     if res != 0:
       print('Error: Git clone failed')
       return False, None

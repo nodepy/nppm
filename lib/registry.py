@@ -202,8 +202,7 @@ class RegistryClient(object):
     try:
       return manifest.parse_dict(data, None, None, copy=False)
     except manifest.InvalidPackageManifest as exc:
-      raise Error(response.url,
-          'Invalid package manifest ({})'.format(exc), data)
+      raise Error(response, 'Invalid package manifest ({})'.format(exc), data)
 
   def upload(self, package_name, version, filename, force=False):
     """

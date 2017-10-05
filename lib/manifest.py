@@ -21,6 +21,7 @@
 import collections
 import jsonschema
 import os
+import pip
 import re
 import six
 import string
@@ -39,13 +40,35 @@ url_regex = re.compile(
   r'(?:/?|[/?]\S+)$', re.IGNORECASE)
 
 
-class RegistryDependency(collections.namedtuple('C', 'version registry private')):
+class PythonDependency(object):
+  type = 'python'
+
+  def __init__(self, spec):
+    self.spec = pip.req.InstallRequirement.from_line(spec)
+
+  def __repr__(self):
+    return 'PythonDependency(name={!r}, specifier={!r})'\
+      .format(self.name, self.specifier)
+
+  @property
+  def name(self):
+    return self.req.name
+
+  @property
+  def req(self):
+    return self.spec.req
+
+  @property
+  def specifier(self):
+    return str(self.spec.req.specifier)
+
+class RegistryDependency(collections.namedtuple('C', 'name version registry private')):
   type = 'registry'
 
-class GitDependency(collections.namedtuple('C', 'url ref recursive private')):
+class GitDependency(collections.namedtuple('C', 'name url ref recursive private')):
   type = 'git'
 
-class PathDependency(collections.namedtuple('C', 'path link private')):
+class PathDependency(collections.namedtuple('C', 'name path link private')):
   type = 'path'
 
 
@@ -185,7 +208,7 @@ class PackageManifest(object):
     self.repository = repository
     self.description = description
     self.license = license
-    self.dependencies = {} if dependencies is None else dependencies
+    self.dependencies = [] if dependencies is None else dependencies
     self.python_dependencies = {} if python_dependencies is None else python_dependencies
     self.scripts = {} if scripts is None else scripts
     self.bin = {} if bin is None else bin
@@ -284,24 +307,24 @@ def parse_dict(data, filename=None, directory=None, copy=True):
     if k in data['package']:
       kwargs[k] = data['package'][k]
 
-  dependencies = {}
+  dependencies = []
   for dep, sel in data.get('dependencies', {}).items():
     if isinstance(sel, str):
       sel = {'version': sel}
     if 'version' in sel:
-      dep_data = RegistryDependency(semver.Selector(sel['version']),
+      dep_data = RegistryDependency(dep, semver.Selector(sel['version']),
                                     sel.get('registry'),
                                     sel.get('private', False))
     elif 'git' in sel:
-      dep_data = GitDependency(sel['git'], sel.get('ref', None),
+      dep_data = GitDependency(dep, sel['git'], sel.get('ref', None),
                                sel.get('recursive', True),
                                sel.get('private', False))
     elif 'path' in sel:
-      dep_data = PathDependency(sel['path'], sel.get('link', False),
+      dep_data = PathDependency(dep, sel['path'], sel.get('link', False),
                                 sel.get('private', False))
     else:
       raise RuntimeError('jsonschema should\'ve validated this')
-    dependencies[dep] = dep_data
+    dependencies.append(dep_data)
   kwargs['dependencies'] = dependencies
   kwargs['python_dependencies'] = data.get('python_dependencies', {})
 
