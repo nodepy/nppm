@@ -42,8 +42,8 @@ version = "0.0.1-security"
 *Optional.* URL to the source code repository where the package is developed.
 If specified, the URL must be valid.
 
-```json
-{ "repository": "https://github.com/nodepy/nodepy" }
+```toml
+repository = "https://github.com/nodepy/nodepy"
 ```
 
 #### `license`
@@ -51,8 +51,8 @@ If specified, the URL must be valid.
 *Required when publishing a package on the registry.* The license of the
 package source code.
 
-```json
-{ "license": "MIT" }
+```toml
+license = "MIT"
 ```
 
 #### `resolve_root`
@@ -61,14 +61,11 @@ package source code.
 root directory when importing modules from this package. Should be used if you
 want to keep all source files under a sub-directory of your package.
 
-```json
-{
-  "resolve_root": "lib/"
-}
+```toml
+resolve_root = "lib/"
 ```
 
-
-### `private`
+#### `private`
 
 *Optional.* Prevent publication of the package with `nppm publish`. This is used
 for packages that want to take advantage of the nppm dependency management but
@@ -79,7 +76,7 @@ of this would be a package that generates the documentation of another project.
 private = true
 ```
 
-### `main`
+#### `main`
 
 *Optional.* This field describes the name of the module to load when your
 package is required by another module. If this field is not specified, the
@@ -89,7 +86,7 @@ package is required by another module. If this field is not specified, the
 main = "./index.py"
 ```
 
-### `extensions`
+#### `extensions`
 
 *Optional.* A list if extension modules that will be required once for the
 package, then events will be dispatched to those extensions. The specified
@@ -101,6 +98,20 @@ interface.
 
 ```toml
 extensions = [ "@nodepy/werkzeug-reloader-patch", "./ext.py" ]
+```
+
+### `[authors]`
+
+*Optional.* A table that specifies the authors of this package. The keys of
+this table are the author names, the values are sub tables with additional
+information about the author.
+
+* `email` (an email string, or array of email strings)
+* `homepage`
+
+```toml
+[authors]
+"Niklas Rosenstein" = { email = "rosensteinniklas@gmail.com" }
 ```
 
 ### `[engines]`
