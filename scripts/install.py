@@ -49,11 +49,12 @@ def main():
     print('fatal: -l, --local and -g, --global can not be mixed')
     return 1
 
-  dirs = get_directories('local' if args.local else ('global' if args.g else 'root'))
+  location = 'local' if args.local else ('global' if args.g else 'root')
+  dirs = get_directories(location)
 
   print("installing nodepy-pm Pip dependencies...")
   cmd = ['--prefix', dirs['pip_prefix']]
-  for key, value in module.package.payload['python_dependencies'].items():
+  for key, value in module.package.payload['dependencies']['python'].items():
     cmd.append(key + value)
 
   with brewfix():
@@ -84,6 +85,8 @@ def main():
     cmd.append('--upgrade')
   if args.g:
     cmd.append('--global')
+  elif not args.local:
+    cmd.append('--root')
   if args.develop:
     cmd.append('--develop')
   if args.force:
