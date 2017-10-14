@@ -58,12 +58,12 @@ def _makedirs(path):
     os.makedirs(path)
 
 
-def _match_any_pattern(filename, patterns):
+def _match_any_pattern(filename, patterns, gitignore_style=False):
   if os.name == 'nt':
     filename = filename.replace('\\', '/')
   for pattern in patterns:
     if filename == pattern or filename.startswith(pattern + '/') or \
-        filename.endswith('/' + pattern):
+        (gitignore_style and filename.endswith('/' + pattern)):
       return True
     if fnmatch(filename, pattern):
       return True
@@ -71,11 +71,13 @@ def _match_any_pattern(filename, patterns):
 
 
 def _check_include_file(filename, include_patterns, exclude_patterns):
-  if include_patterns and _match_any_pattern(filename, include_patterns):
-    return True
-  if _match_any_pattern(filename, exclude_patterns):
+  if include_patterns:
+    if _match_any_pattern(filename, exclude_patterns):
+      return False
+    if _match_any_pattern(filename, include_patterns):
+      return True
     return False
-  return True
+  return _match_any_pattern(filename, exclude_patterns)
 
 
 class PackageNotFound(Exception):
@@ -89,6 +91,7 @@ def walk_package_files(manifest):
 
   inpat = manifest.dist.get('include_files', [])
   expat = manifest.dist.get('exclude_files', []) + default_exclude_patterns
+
   if manifest.dist.get('exclude_gitignored_files', True):
     ignore_file = os.path.join(manifest.directory, '.gitignore')
     if os.path.isfile(ignore_file):

@@ -293,9 +293,9 @@ def install(packages, upgrade, develop, global_, root, ignore_installed,
         if develop:
           print('Warning: Can not install in develop mode from archive "{}"'
             .format(pkg.path))
-        success, mnf = installer.install_from_archive(pkg.path, dev=dev)[0]
+        success, mnf = installer.install_from_archive(pkg.path, dev=dev)
       else:
-        success, mnf = installer.install_from_directory(pkg.path, develop, dev=dev)[0]
+        success, mnf = installer.install_from_directory(pkg.path, develop, dev=dev)
       if success:
         installed_info[pkg] = (mnf.name, mnf.version)
     else:
