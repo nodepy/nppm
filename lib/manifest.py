@@ -76,24 +76,8 @@ class PathDependency(collections.namedtuple('C', 'name path link private')):
 class PackageManifest(object):
   """
   This class describes a `nodepy-package.toml` package manifest in memory.
-  Check out the #schema for a description of supported fields. Additional
-  fields are only accepted when the name of that field also appears in the
-  *engines* object, for example
-
-  ```json
-  {
-    "engines": {
-      "python": ">=3.4.1",
-      "craftr": ">=3.1.0"
-    },
-    "craftr": {
-      // ...
-    }
-  }
-  ```
-
-  These additional fields are stored in the #engine_props dictionary of the
-  #PackageManifest.
+  Check out the #schema for a description of supported fields. Any additional
+  fields are also accepted in the manifest, but not validated.
   """
 
   schema = {
@@ -203,7 +187,7 @@ class PackageManifest(object):
 
   def __init__(self, filename, directory, name, version, description=None,
       authors=None, license=None, dependencies=None, python_dependencies=None,
-      scripts=None, bin=None, engines=None, engine_props=None, dist=None,
+      scripts=None, bin=None, engines=None, dist=None,
       repository=None, private=False, resolve_root=None, main=None,
       extensions=None):
     if len(name) < 2 or len(name) > 127:
@@ -227,7 +211,6 @@ class PackageManifest(object):
     self.python_dependencies = {} if python_dependencies is None else python_dependencies
     self.scripts = {} if scripts is None else scripts
     self.bin = {} if bin is None else bin
-    self.engine_props = {} if engine_props is None else engine_props
     self.dist = {} if dist is None else dist
     self.private = private
     self.resolve_root = resolve_root
@@ -347,15 +330,6 @@ def parse_dict(data, filename=None, directory=None, copy=True):
   for eng, sel in data.get('engines', {}).items():
     engines[eng] = semver.Selector(sel)
   kwargs['engines'] = engines
-
-  engine_props = {}
-  for key in tuple(data.keys()):
-    if key not in PackageManifest.schema['properties']:
-      if key not in engines:
-        msg = 'unexpected additional field: "{}"'
-        raise InvalidPackageManifest(filename, msg.format(key))
-      engine_props[key] = data.pop(key)
-  kwargs['engine_props'] = engine_props
 
   for k in 'authors,description,repository,license,scripts,bin,dist'.split(','):
     if k in data:
