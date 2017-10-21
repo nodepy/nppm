@@ -7,7 +7,7 @@ Node.py package manifest specification.
 ```python
 manifest = require('@nodepy/nodepy-pm/lib/manifest')
 try:
-  m = manifest.parse('nodepy-package.toml')
+  m = manifest.parse('nodepy-package.toml', ['development'])
 except (FileNotFoundError, manifest.InvalidPackageManifest) as exc:
   print(exc)
   m = None

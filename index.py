@@ -257,9 +257,6 @@ def install(packages, upgrade, develop, global_, root, ignore_installed,
         private
       ))
 
-  save_deps = []
-  python_deps = []
-
   # Install Python dependencies.
   python_deps = {}
   python_additional = []
@@ -307,16 +304,19 @@ def install(packages, upgrade, develop, global_, root, ignore_installed,
 
   if (save or save_dev):
     deps = manifest_data.setdefault('dependencies', {})
-  if (save or save_dev) and save_deps:
+  if (save or save_dev) and npy_packages:
+    print('Saved dependencies:')
     data = deps.setdefault('nodepy', {})
-    if save_dev: data = data.setdefault(".'cfg(development)'", {})
-    for key, value in save_deps:
-      print('  "{}": "{}"'.format(key, value))
-      data[key] = value
+    if save_dev: data = data.setdefault("cfg(development)", {})
+    for pkg in npy_packages:
+      info = installed_info[pkg]
+      data[info[0]] = pkg.to_toml(name=info[0], version=info[1])
+      print("  {}: {}".format(info[0], data[info[0]]))
 
   if (save or save_dev) and python_deps:
     data = deps.setdefault('python', {})
-    if save_dev: data = data.setdefault(".'cfg(development)'", {})
+    if save_dev: data = data.setdefault("cfg(development)", {})
+    print('Saved python dependencies:')
     for pkg_name, dist_info in installer.installed_python_libs.items():
       if not dist_info:
         print('warning: could not find .dist-info of module "{}"'.format(pkg_name))
@@ -332,7 +332,7 @@ def install(packages, upgrade, develop, global_, root, ignore_installed,
       if ext_name not in extensions:
         extensions.append(ext_name)
 
-  if (save or save_dev) and (save_deps or python_deps):
+  if (save or save_dev) and (npy_packages or python_deps):
     with open(manifest_filename, 'w') as fp:
       toml.dump(manifest_data, fp, preserve=True)
 
@@ -364,7 +364,7 @@ def dist():
   Create a .tar.gz distribution from the package.
   """
 
-  PackageLifecycle().dist()
+  PackageLifecycle([]).dist()
 
 
 @main.command()
@@ -385,7 +385,7 @@ def upload(filename, force, user, password, dry, to):
 
   print('error: nodepy-pm upload is currently not supported')
   return 1
-  #PackageLifecycle().upload(filename, user, password, force, dry, to)
+  #PackageLifecycle([]).upload(filename, user, password, force, dry, to)
 
 
 @main.command()
@@ -403,7 +403,7 @@ def publish(force, user, password, dry, to):
 
   print('error: nodepy-pm publish is currently not supported')
   return 1
-  PackageLifecycle().publish(user, password, force, dry, to)
+  PackageLifecycle([]).publish(user, password, force, dry, to)
 
 
 @main.command()
@@ -558,7 +558,7 @@ def run(script, args):
   Run a script that is specified in the nodepy-package.toml.
   """
 
-  if not PackageLifecycle(allow_no_manifest=True).run(script, args):
+  if not PackageLifecycle([], allow_no_manifest=True).run(script, args):
     error("no script '{}'".format(script))
 
 

@@ -35,6 +35,7 @@ import tempfile
 import traceback
 
 from fnmatch import fnmatch
+from nodepy.utils import pathlib
 
 import _registry from './registry'
 import _config from './config'
@@ -177,11 +178,9 @@ class Installer:
     if not os.path.isdir(dirname):
       raise PackageNotFound(package)
 
-    lnk = nodepy.get_package_link(dirname)
+    lnk = nodepy.resolver.StdResolver.resolve_link(require.context, pathlib.Path(dirname))
     if lnk:
-      rel = os.path.relpath(dirname, lnk.src)
-      assert rel == os.curdir, rel
-      manifest_fn = os.path.join(lnk.dst, PACKAGE_MANIFEST)
+      manifest_fn = os.path.join(lnk, PACKAGE_MANIFEST)
     else:
       manifest_fn = os.path.join(dirname, PACKAGE_MANIFEST)
 
@@ -191,7 +190,7 @@ class Installer:
       raise PackageNotFound(package)
     else:
       try:
-        return parse_manifest(manifest_fn, directory=dirname)
+        return parse_manifest(manifest_fn, [], directory=dirname)
       except InvalidPackageManifest as exc:
         print('Warning: invalid package manifest')
         print("  at '{}'".format(manifest_fn))
@@ -224,7 +223,7 @@ class Installer:
       manifest_fn = os.path.join(directory, PACKAGE_MANIFEST)
 
     try:
-      manifest = parse_manifest(manifest_fn)
+      manifest = parse_manifest(manifest_fn, [])
     except (OSError, IOError) as exc:
       if exc.errno != errno.ENOENT:
         raise
@@ -242,7 +241,7 @@ class Installer:
     print('Uninstalling "{}" from "{}"{}...'.format(manifest.identifier,
         directory, ' before upgrade' if self.upgrade else ''))
 
-    plc = PackageLifecycle(manifest=manifest)
+    plc = PackageLifecycle([], manifest=manifest)
     try:
       plc.run('pre-uninstall', [], script_only=True)
     except:
@@ -273,7 +272,7 @@ class Installer:
     Installs the Node.py and Python dependencies of a #PackageManifest.
     """
 
-    deps = dict(manifest.dependencies)
+    deps = manifest.dependencies
     # TODO: Resolve development dependencies
     if deps:
       print('Installing dependencies for "{}"{}...'.format(manifest.identifier,
@@ -281,7 +280,7 @@ class Installer:
       if not self.install_dependencies(deps, manifest.directory):
         return False
 
-    deps = dict(manifest.python_dependencies)
+    deps = manifest.python_dependencies
     # TODO: Resolve development dependencies
     if deps:
       print('Installing Python dependencies for "{}"{}...'.format(
@@ -297,7 +296,8 @@ class Installer:
     """
 
     install_deps = []
-    for name, dep in deps.items():
+    for dep in deps:
+      name = dep.name
       try:
         have_package = self.find_package(name)
       except PackageNotFound as exc:
@@ -306,10 +306,10 @@ class Installer:
         if dep.type == 'registry':
           if not dep.version(have_package.version):
             print('  Warning: Dependency "{}@{}" unsatisfied, have "{}" installed'
-                .format(name, version, have_package.identifier))
+                .format(name, dep.version, have_package.identifier))
           else:
             print('  Skipping satisfied dependency "{}@{}", have "{}" installed'
-                .format(name, version, have_package.identifier))
+                .format(name, dep.version, have_package.identifier))
         else:
           # Must be a Git URL or a relative path.
           print('  Skipping "{}" dependency, have "{}" installed'
@@ -452,7 +452,7 @@ class Installer:
     filename = os.path.normpath(os.path.abspath(os.path.join(directory, PACKAGE_MANIFEST)))
 
     try:
-      manifest = parse_manifest(filename)
+      manifest = parse_manifest(filename, ['development'] if dev else [])
     except (IOError, OSError) as exc:
       if exc.errno == errno.ENOENT:
         print('Error: directory "{}" contains no package manifest'.format(directory))
@@ -479,7 +479,7 @@ class Installer:
       if not self.uninstall_directory(target_dir):
         return False, manifest
 
-    plc = PackageLifecycle(manifest=manifest)
+    plc = PackageLifecycle(['development'] if dev else [], manifest=manifest)
     try:
       plc.run('pre-install', [], script_only=True)
     except:

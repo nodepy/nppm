@@ -69,7 +69,8 @@ class PackageLifecycle(object):
       if fn.is_file():
         return str(fn)
 
-  def __init__(self, directory='.', dist_dir=None, manifest=None, allow_no_manifest=False):
+  def __init__(self, config_props, directory='.', dist_dir=None, manifest=None, allow_no_manifest=False):
+    self.config_props = config_props
     if manifest is None:
       if not dist_dir:
         dist_dir = os.path.join(directory, 'dist')
@@ -79,7 +80,7 @@ class PackageLifecycle(object):
         exit(1)
       if fn:
         try:
-          manifest = _manifest.parse(fn)
+          manifest = _manifest.parse(fn, self.config_props)
         except _manifest.InvalidPackageManifest as e:
           if allow_no_manifest:
             logger.warn('Invalid package manifest (%s): %s', e.filename, str(e.cause).split('\n')[0])

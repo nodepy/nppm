@@ -66,11 +66,37 @@ class PythonDependency(object):
 class RegistryDependency(collections.namedtuple('C', 'name version registry private')):
   type = 'registry'
 
+  def to_toml(self, name, version):
+    assert self.name == name, (self.name, name)
+    data = {'version': '~' + str(self.version)}
+    if self.private: data['private'] = True
+    if self.registry: data['registry'] = self.registry
+    return data
+
 class GitDependency(collections.namedtuple('C', 'name url ref recursive private')):
   type = 'git'
 
+  def to_toml(self, name, version):
+    assert not self.name or self.name == name, (self.name, name)
+    data = {'url': self.url, 'version': '~' + str(version)}
+    if self.ref: data['ref'] = self.ref
+    if self.private: data['private'] = True
+    if not self.recursive: data['recursive'] = False
+    return data
+
 class PathDependency(collections.namedtuple('C', 'name path link private')):
   type = 'path'
+
+  def to_toml(self, name, version):
+    assert not self.name or self.name == name, (self.name, name)
+    data = {'path': self.path}
+    if self.link: data['link'] = True
+    if self.private: data['private'] = True
+    return data
+
+
+def match_config(props, name):
+  return name in props
 
 
 class PackageManifest(object):
@@ -114,6 +140,10 @@ class PackageManifest(object):
           "nodepy": {
             "type": "object",
             # TODO: These do not seem to be checked.
+            "patternProperties": {
+              # TODO: Reference the additionalProperties here or so.
+              "cfg\([^\)]+\)": {"type": "object"}
+            },
             "additionalProperties": {"anyOf": [
               {"type": "string"},
               {
@@ -251,7 +281,7 @@ class InvalidPackageManifest(Exception):
     return str(self.cause)
 
 
-def parse(filename, directory=None):
+def parse(filename, config_props, directory=None):
   """
   Parses a manifest file and returns it. If *directory* is #None, it will
   be derived from the *filename*.
@@ -267,10 +297,10 @@ def parse(filename, directory=None):
       data = toml.load(fp)
     except json.JSONDecodeError as exc:
       raise InvalidPackageManifest(filename, exc)
-    return parse_dict(data, filename, directory, copy=False)
+    return parse_dict(data, config_props, filename, directory, copy=False)
 
 
-def parse_dict(data, filename=None, directory=None, copy=True):
+def parse_dict(data, config_props, filename=None, directory=None, copy=True):
   """
   Takes a Python dictionary that represents a manifest from a JSON source
   and converts it to a #PackageManifest. The *filename* and *directory* can
@@ -305,8 +335,7 @@ def parse_dict(data, filename=None, directory=None, copy=True):
     if k in data['package']:
       kwargs[k] = data['package'][k]
 
-  dependencies = []
-  for dep, sel in data.get('dependencies', {}).get('nodepy', {}).items():
+  def match_dep(dep, sel):
     if isinstance(sel, str):
       sel = {'version': sel}
     if 'version' in sel:
@@ -315,14 +344,24 @@ def parse_dict(data, filename=None, directory=None, copy=True):
                                     sel.get('private', False))
     elif 'git' in sel:
       dep_data = GitDependency(dep, sel['git'], sel.get('ref', None),
-                               sel.get('recursive', True),
-                               sel.get('private', False))
+                              sel.get('recursive', True),
+                              sel.get('private', False))
     elif 'path' in sel:
       dep_data = PathDependency(dep, sel['path'], sel.get('link', False),
                                 sel.get('private', False))
     else:
       raise RuntimeError('jsonschema should\'ve validated this')
-    dependencies.append(dep_data)
+    return dep_data
+
+  dependencies = []
+  for dep, sel in data.get('dependencies', {}).get('nodepy', {}).items():
+    if dep.startswith('cfg(') and dep.endswith(')'):
+      if match_config(config_props, dep[4:-1]):
+        for dep, sel in sel.items():
+          dependencies.append(match_dep(dep, sel))
+      continue
+    else:
+      dependencies.append(match_dep(dep, sel))
   kwargs['dependencies'] = dependencies
   kwargs['python_dependencies'] = data.get('dependencies', {}).get('python', {})
 

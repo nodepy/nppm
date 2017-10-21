@@ -200,7 +200,8 @@ class RegistryClient(object):
       raise
 
     try:
-      return manifest.parse_dict(data, None, None, copy=False)
+      # TODO: Pass config props to parse_dict()
+      return manifest.parse_dict(data, [], None, None, copy=False)
     except manifest.InvalidPackageManifest as exc:
       raise Error(response, 'Invalid package manifest ({})'.format(exc), data)
 
