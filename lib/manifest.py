@@ -180,6 +180,13 @@ class PackageManifest(object):
           },
           "python": {
             "type": "object",
+            "patternProperties": {
+              # TODO: Reference the additionalProperties here or so.
+              "cfg\([^\)]+\)": {
+                "type": "object",
+                "additionalProperties": {"type": "string"}
+              }
+            },
             "additionalProperties": {"type": "string"}
           }
         }
@@ -364,6 +371,11 @@ def parse_dict(data, config_props, filename=None, directory=None, copy=True):
       dependencies.append(match_dep(dep, sel))
   kwargs['dependencies'] = dependencies
   kwargs['python_dependencies'] = data.get('dependencies', {}).get('python', {})
+  for kw in tuple(kwargs['python_dependencies'].keys()):
+    if kw.startswith('cfg(') and kw.endswith(')'):
+      data = kwargs['python_dependencies'].pop(kw)
+      if match_config(config_props, kw[4:-1]):
+        kwargs['python_dependencies'].update(data)
 
   engines = {}
   for eng, sel in data.get('engines', {}).items():
