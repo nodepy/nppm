@@ -296,7 +296,7 @@ def parse_dict(data, filename=None, directory=None, copy=True):
     raise InvalidPackageManifest(filename, exc)
 
   try:
-    semver.Version(data['package']['version'])
+    data['package']['version'] = semver.Version(data['package']['version'])
     kwargs['version'] = data['package']['version']
   except ValueError as exc:
     raise InvalidPackageManifest(filename, exc)

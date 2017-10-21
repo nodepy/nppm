@@ -383,7 +383,9 @@ def upload(filename, force, user, password, dry, to):
   source distribution that can be created with 'nppm dist'.
   """
 
-  PackageLifecycle().upload(filename, user, password, force, dry, to)
+  print('error: nodepy-pm upload is currently not supported')
+  return 1
+  #PackageLifecycle().upload(filename, user, password, force, dry, to)
 
 
 @main.command()
@@ -399,6 +401,8 @@ def publish(force, user, password, dry, to):
   and `post-publish` scripts.
   """
 
+  print('error: nodepy-pm publish is currently not supported')
+  return 1
   PackageLifecycle().publish(user, password, force, dry, to)
 
 
@@ -412,6 +416,9 @@ def register(registry, agree_tos, save):
   Register a new user on the package registry. Specify the registry to
   register to using the REGISTRY argument. Defaults to 'default'.
   """
+
+  print('error: nodepy-pm register is currently not supported')
+  return 1
 
   reg = RegistryClient.get(registry)
   print('Registry:', reg.name)
