@@ -1,5 +1,5 @@
 [package]
-name = "nodepy-pm"
+name = "nodepy-package-manager"
 version = "2.0.0"
 license = "MIT"
 description = "The Node.py Package Manager."
