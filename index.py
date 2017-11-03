@@ -19,7 +19,7 @@
 # THE SOFTWARE.
 
 from __future__ import print_function
-from nodepy.vendor import toml
+from nodepy.utils import json
 from operator import itemgetter
 from six.moves import input
 
@@ -33,7 +33,7 @@ import pip.req
 import six
 import sys
 
-import manifest from './lib/manifest'
+import manifest, {load as load_manifest} from './lib/manifest'
 import semver from './lib/semver'
 import refstring from './lib/refstring'
 import config from './lib/config'
@@ -43,7 +43,7 @@ import {RegistryClient} from './lib/registry'
 import PackageLifecycle from './lib/package-lifecycle'
 import env, {PACKAGE_MANIFEST} from './lib/env'
 
-__version__ = module.package.payload['package']['version']
+__version__ = module.package.payload['version']
 VERSION = "{} [{}]".format(__version__, nodepy.main.VERSION)
 
 class Less(object):
@@ -98,6 +98,19 @@ def exit_with_return(func):
     sys.exit(res)
   return wrapper
 
+
+def report_manifest_issues(filename, payload):
+  for field in manifest.validate(payload):
+    name = field.cfg or ''
+    if name and name[-1] != '.':
+      name += '>'
+    name += field.name
+    for msg in field.warnings:
+      print('WARNING: {}@{} {}'.format(filename, name, msg))
+    for msg in field.errors:
+      print('CRITICAL: {}@{} {}'.format(filename, name, msg))
+
+
 @click.group(help=VERSION)
 def main():
   pass
@@ -138,7 +151,7 @@ def version():
   help='Passed to Pip when installing Python dependencies. Ignores '
        'packages that are already installed in other directories.')
 @click.option('-P', '--packagedir', default='.',
-  help='The directory to read/write the nodepy-package.toml to or from.')
+  help='The directory to read/write the nodepy.json to or from.')
 @click.option('-R', '--recursive', is_flag=True,
   help='Satisfy dependencies of already satisfied dependencies.')
 @click.option('--pip-separate-process', is_flag=True)
@@ -198,13 +211,17 @@ def install(packages, upgrade, develop, global_, root, ignore_installed,
   if save and save_dev:
     print('Error: decide for either --save or --save-dev')
     return 1
-  if save or save_dev:
-    if not os.path.isfile(manifest_filename):
-      print('Error: can not --save or --save-dev without "{}"'.format(PACKAGE_MANIFEST))
-      print('  You can use `nodepy-pm init` to create a package manifest.')
-      return 1
-    with open(manifest_filename) as fp:
-      manifest_data = toml.load(fp, _dict=collections.OrderedDict)
+
+  if os.path.isfile(manifest_filename):
+    manifest_data = load_manifest(manifest_filename)
+    report_manifest_issues(manifest_filename, manifest_data)
+  else:
+    manifest_data = None
+
+  if (save or save_dev or save_ext) and manifest_data is None:
+    print('Error: can not --save, --save-dev or --save-ext without "{}"'.format(PACKAGE_MANIFEST))
+    print('  You can use `nodepypm init` to create a package manifest.')
+    return 1
 
   # If not packages are specified, we install the dependencies of the
   # current package.
@@ -236,37 +253,20 @@ def install(packages, upgrade, develop, global_, root, ignore_installed,
   npy_packages = []
   for pkg in packages:
     if pkg.startswith('~'):
-      pip_packages.append(manifest.PythonDependency(pkg[1:]))
-    elif pkg.startswith('git+'):
-      if '@' in pkg:
-        pkg, _, ref = pkg.rpartition('@')
-      else:
-        ref = None
-      npy_packages.append(manifest.GitDependency(None, pkg[4:], ref, True, private))
-    elif os.path.exists(pkg):
-      npy_packages.append(manifest.PathDependency(None, pkg, develop, private))
+      pip_packages.append(manifest.PipRequirement.from_line(pkg[1:]))
     else:
-      ref = refstring.parse(pkg)
-      if ref.module or ref.member:
-        print('Error: invalid dependency reference:', ref)
-        return 1
-      npy_packages.append(manifest.RegistryDependency(
-        str(ref.package),
-        ref.version or semver.Selector('*'),
-        registry,
-        private
-      ))
+      npy_packages.append(manifest.Requirement.from_line(pkg, expect_name=True))
 
   # Install Python dependencies.
   python_deps = {}
   python_additional = []
-  for pkg in pip_packages:
-    if (save or save_dev) and not pkg.req:
+  for spec in pip_packages:
+    if (save or save_dev) and not spec.req:
       return error("'{}' is not something we can install via NPPM with --save/--save-dev".format(pkg.spec))
-    if pkg.req:
-      python_deps[pkg.name] = pkg.specifier
+    if spec.req:
+      python_deps[spec.name] = str(spec.specifier)
     else:
-      python_additional.append(str(pkg.spec))
+      python_additional.append(str(spec))
   if (python_deps or python_additional):
     if not installer.install_python_dependencies(python_deps, args=python_additional):
       print('Installation failed')
@@ -274,31 +274,13 @@ def install(packages, upgrade, develop, global_, root, ignore_installed,
 
   # Install Node.py dependencies.
   installed_info = {}
-  for pkg in npy_packages:
-    if pkg.type == 'registry':
-      registry = RegistryClient(pkg.registry, pkg.registry) if pkg.registry else None
-      success, info = installer.install_from_registry(pkg.name, pkg.version, dev, registry)
-      if success:
-        assert info[0] == pkg.name, (info, pkg)
-        installed_info[pkg] = info
-    elif pkg.type == 'git':
-      success, info = installer.install_from_git(pkg.url, pkg.ref, pkg.recursive, pkg.private)
-      if success:
-        installed_info[pkg] = info
-    elif pkg.type == 'path':
-      if os.path.isfile(pkg.path):
-        if develop:
-          print('Warning: Can not install in develop mode from archive "{}"'
-            .format(pkg.path))
-        success, mnf = installer.install_from_archive(pkg.path, dev=dev)
-      else:
-        success, mnf = installer.install_from_directory(pkg.path, develop, dev=dev)
-      if success:
-        installed_info[pkg] = (mnf.name, mnf.version)
-    else:
-      raise RuntimeError('unexpected pkg type:', pkg)
+  for req in npy_packages:
+    success, info = installer.install_from_requirement(req)
     if not success:
       error('Installation failed')
+    if req.name:
+      assert info[0] == pkg.name, (info, pkg)
+    installed_info[pkg] = info
 
   installer.relink_pip_scripts()
 
@@ -310,7 +292,7 @@ def install(packages, upgrade, develop, global_, root, ignore_installed,
     if save_dev: data = data.setdefault("cfg(development)", {})
     for pkg in npy_packages:
       info = installed_info[pkg]
-      data[info[0]] = pkg.to_toml(name=info[0], version=info[1])
+      data[info[0]] = pkg.to_json(name=info[0], version=info[1])
       print("  {}: {}".format(info[0], data[info[0]]))
 
   if (save or save_dev) and python_deps:
@@ -334,7 +316,7 @@ def install(packages, upgrade, develop, global_, root, ignore_installed,
 
   if (save or save_dev) and (npy_packages or python_deps):
     with open(manifest_filename, 'w') as fp:
-      toml.dump(manifest_data, fp, preserve=True)
+      json.dump(manifest_data, fp, indent=2)
 
   print()
   return 0
@@ -364,7 +346,7 @@ def dist():
   Create a .tar.gz distribution from the package.
   """
 
-  PackageLifecycle([]).dist()
+  PackageLifecycle().dist()
 
 
 @main.command()
@@ -385,7 +367,7 @@ def upload(filename, force, user, password, dry, to):
 
   print('error: nodepy-pm upload is currently not supported')
   return 1
-  #PackageLifecycle([]).upload(filename, user, password, force, dry, to)
+  #PackageLifecycle().upload(filename, user, password, force, dry, to)
 
 
 @main.command()
@@ -403,7 +385,7 @@ def publish(force, user, password, dry, to):
 
   print('error: nodepy-pm publish is currently not supported')
   return 1
-  PackageLifecycle([]).publish(user, password, force, dry, to)
+  #PackageLifecycle().publish(user, password, force, dry, to)
 
 
 @main.command()
@@ -471,7 +453,7 @@ def register(registry, agree_tos, save):
 @exit_with_return
 def init(directory):
   """
-  Initialize a new nodepy-package.toml.
+  Initialize a new nodepy.json manifest.
   """
 
   filename = os.path.join(directory, PACKAGE_MANIFEST)
@@ -501,16 +483,11 @@ def init(directory):
     if reply and reply != '-':
       results[qu[1]] = reply
 
-  reply = input('Do you want to use the require-import-syntax extension? [Y/n] ')
-  if reply.lower() not in ('n', 'no', 'off'):
-    results.setdefault('extensions', []).append('!require-import-syntax')
-  else:
-    reply = input('Do you want to use the require-unpack-syntax extension? [Y/n] ')
-    if reply.lower() not in ('n', 'no', 'off'):
-      results.setdefault('extensions', []).append('!require-unpack-syntax')
+  if 'author' in results:
+    results['authors'] = [results.pop('author')]
 
   with open(filename, 'w') as fp:
-    toml.dump({'package': results}, fp, indent=2)
+    json.dump(results, fp, indent=2)
     fp.write('\n')
 
 
@@ -555,10 +532,10 @@ def dirs(global_, root):
 @exit_with_return
 def run(script, args):
   """
-  Run a script that is specified in the nodepy-package.toml.
+  Run a script that is specified in the nodepy.json manifest.
   """
 
-  if not PackageLifecycle([], allow_no_manifest=True).run(script, args):
+  if not PackageLifecycle(allow_no_manifest=True).run(script, args):
     error("no script '{}'".format(script))
 
 

@@ -19,6 +19,8 @@
 # THE SOFTWARE.
 
 from __future__ import print_function
+from fnmatch import fnmatch
+from nodepy.utils import pathlib
 
 import contextlib
 import errno
@@ -34,9 +36,6 @@ import tarfile
 import tempfile
 import traceback
 
-from fnmatch import fnmatch
-from nodepy.utils import pathlib
-
 import _registry from './registry'
 import _config from './config'
 import _download from './util/download'
@@ -46,8 +45,7 @@ import pathutils from './util/pathutils'
 import brewfix from './brewfix'
 import PackageLifecycle from './package-lifecycle'
 import env, { PACKAGE_MANIFEST } from './env'
-import { parse as parse_manifest } from './manifest'
-import { PackageManifest, InvalidPackageManifest } from './manifest'
+import manifest from './manifest'
 
 default_exclude_patterns = [
     '.DS_Store', '.svn/*', '.git*', env.MODULES_DIRECTORY + '/*',
@@ -71,17 +69,17 @@ def _match_any_pattern(filename, patterns, gitignore_style=False):
   return False
 
 
-def _check_include_file(filename, include_patterns, exclude_patterns):
-  if include_patterns:
-    if _match_any_pattern(filename, exclude_patterns):
-      return False
-    if _match_any_pattern(filename, include_patterns):
-      return True
-    return False
-  return _match_any_pattern(filename, exclude_patterns)
+def _check_include_file(filename, include, exclude):
+  if include is not None and _match_any_pattern(filename, include):
+    return True
+  return not _match_any_pattern(filename, exclude)
 
 
 class PackageNotFound(Exception):
+  pass
+
+
+class InvalidPackageManifest(Exception):
   pass
 
 
@@ -90,10 +88,9 @@ def walk_package_files(manifest):
   Walks over the files included in a package and yields (abspath, relpath).
   """
 
-  inpat = manifest.dist.get('include_files', [])
-  expat = manifest.dist.get('exclude_files', []) + default_exclude_patterns
-
-  if manifest.dist.get('exclude_gitignored_files', True):
+  include = manifest.get('include', None)
+  if include is None:
+    exclude = manifest.get('exclude', []) + default_exclude_patterns
     ignore_file = os.path.join(manifest.directory, '.gitignore')
     if os.path.isfile(ignore_file):
       inpat.append('.gitignore')
@@ -103,12 +100,14 @@ def walk_package_files(manifest):
           if not line: continue
           if line.startswith('#') or line.startswith('!'): continue
           expat.append(line)
+  else:
+    exclude = None
 
   for root, __, files in os.walk(manifest.directory):
     for filename in files:
       filename = os.path.join(root, filename)
       rel = os.path.relpath(filename, manifest.directory)
-      if rel == PACKAGE_MANIFEST or _check_include_file(rel, inpat, expat):
+      if rel == PACKAGE_MANIFEST or _check_include_file(rel, include, exclude):
         yield (filename, rel)
 
 
@@ -163,6 +162,18 @@ class Installer:
       nodepy.utils.machinery.reload_pkg_resources('pkg_resources')
       nodepy.utils.machinery.reload_pkg_resources('pip._vendor.pkg_resources')
 
+  def _load_manifest(self, filename, directory=None, do_raise=True):
+    if not directory:
+      directory = os.path.dirname(filename)
+    mf = manifest.load(filename, directory=directory)
+    if any(f.errors for f in manifest.validate(mf)):
+      if do_raise:
+        raise InvalidPackageManifest("invalid package manifest: {!r}".format(filename))
+      print('Warning: invalid package manifest')
+      print("  at '{}'".format(filename))
+      return None
+    return mf
+
   def find_package(self, package):
     """
     Finds an installed package and returns its #PackageManifest.
@@ -189,12 +200,7 @@ class Installer:
       print("  at '{}'".format(dirname))
       raise PackageNotFound(package)
     else:
-      try:
-        return parse_manifest(manifest_fn, [], directory=dirname)
-      except InvalidPackageManifest as exc:
-        print('Warning: invalid package manifest')
-        print("  at '{}'".format(manifest_fn))
-        return None
+      return self._load_manifest(manifest_fn, directory=directry)
 
   def uninstall(self, package_name):
     """
@@ -223,7 +229,7 @@ class Installer:
       manifest_fn = os.path.join(directory, PACKAGE_MANIFEST)
 
     try:
-      manifest = parse_manifest(manifest_fn, [])
+      mf = self._load_manifest(manifest_fn)
     except (OSError, IOError) as exc:
       if exc.errno != errno.ENOENT:
         raise
@@ -238,10 +244,10 @@ class Installer:
       print('Can not uninstall: directory "{}": Invalid manifest": {}'.format(directory, exc))
       return False
 
-    print('Uninstalling "{}" from "{}"{}...'.format(manifest.identifier,
+    print('Uninstalling "{}" from "{}"{}...'.format(mf.identifier,
         directory, ' before upgrade' if self.upgrade else ''))
 
-    plc = PackageLifecycle([], manifest=manifest)
+    plc = PackageLifecycle(manifest=mf)
     try:
       plc.run('pre-uninstall', [], script_only=True)
     except:
@@ -272,7 +278,8 @@ class Installer:
     Installs the Node.py and Python dependencies of a #PackageManifest.
     """
 
-    deps = manifest.dependencies
+    # TODO: Evaluate cfg(...) stuff
+    deps = manifest.get('dependencies', {})
     # TODO: Resolve development dependencies
     if deps:
       print('Installing dependencies for "{}"{}...'.format(manifest.identifier,
@@ -280,7 +287,7 @@ class Installer:
       if not self.install_dependencies(deps, manifest.directory):
         return False
 
-    deps = manifest.python_dependencies
+    deps = manifest.get('pip_dependencies', {})
     # TODO: Resolve development dependencies
     if deps:
       print('Installing Python dependencies for "{}"{}...'.format(
@@ -424,11 +431,40 @@ class Installer:
         print('  Creating', script_name, 'from', target_prog, '...')
         self.script.make_wrapper(script_name, prefix + [target_prog])
 
+  def install_from_requirement(self, req, dev=False):
+    """
+    Installs from a requirement line or object.
+    """
+
+    if isinstance(req, str):
+      req = manifest.Requirement.from_line(req)
+
+    registry = None
+    if req.registry:
+      registry = RegistryClient(req.registry, req.registry)
+
+    if req.selector:
+      return self.install_from_registry(req.name, req.selector, dev=dev,
+        registry=registry, private=req.internal)
+    if req.git_url:
+      url, ref = req.git_url.partition('@')[::2]
+      return self.install_from_git(url, ref, req.recursive, req.internal)
+    if req.path:
+      if os.path.isfile(req.path):
+        if req.link:
+          print('Warning: Can not install in develop mode from archive "{}"'
+            .format(req.path))
+        success, mnf = self.install_from_archive(req.path, dev=dev)
+      else:
+        success, mnf = self.install_from_directory(req.path, req.link, dev=dev)
+      info = (mnf['name'], mnf['version']) if success else None
+      return success, info
+
   def install_from_directory(self, directory, develop=False, dev=False,
       expect=None, movedir=False):
     """
     Installs a package from a directory. The directory must have a
-    `nodepy-package.toml` file. If *expect* is specified, it must be a tuple of
+    `nodepy.json` file. If *expect* is specified, it must be a tuple of
     (package_name, version) that is expected to be installed with *directory*.
     The argument is used by #install_from_registry().
 
@@ -452,7 +488,7 @@ class Installer:
     filename = os.path.normpath(os.path.abspath(os.path.join(directory, PACKAGE_MANIFEST)))
 
     try:
-      manifest = parse_manifest(filename, ['development'] if dev else [])
+      manifest = self._load_manifest(filename)
     except (IOError, OSError) as exc:
       if exc.errno == errno.ENOENT:
         print('Error: directory "{}" contains no package manifest'.format(directory))
@@ -462,13 +498,13 @@ class Installer:
       print('Error: directory "{}":'.format(directory), exc)
       return False, None
 
-    if expect is not None and (manifest.name, manifest.version) != expect:
+    if expect is not None and (manifest['name'], manifest['version']) != expect:
       print('Error: Expected to install "{}@{}" but got "{}" in "{}"'
           .format(expect[0], expect[1], manifest.identifier, directory))
       return False, manifest
 
     print('Installing "{}"...'.format(manifest.identifier))
-    target_dir = os.path.join(self.dirs['packages'], manifest.name)
+    target_dir = os.path.join(self.dirs['packages'], manifest['name'])
 
     # Error if the target directory already exists. The package must be
     # uninstalled before it can be installed again.
@@ -479,7 +515,7 @@ class Installer:
       if not self.uninstall_directory(target_dir):
         return False, manifest
 
-    plc = PackageLifecycle(['development'] if dev else [], manifest=manifest)
+    plc = PackageLifecycle(manifest=manifest)
     try:
       plc.run('pre-install', [], script_only=True)
     except:
@@ -518,7 +554,7 @@ class Installer:
           installed_files.append(dst)
 
     # Create scripts for the 'bin' field in the package manifest.
-    for script_name, filename in manifest.bin.items():
+    for script_name, filename in manifest.get('bin', {}).items():
       if '${py}' in script_name:
         script_names = [
             script_name.replace('${py}', ''),
@@ -654,7 +690,7 @@ class Installer:
       success, manifest = self.install_from_directory(dest, movedir=True)
 
     if manifest:
-      return success, (manifest.name, manifest.version)
+      return success, (manifest['name'], manifest['version'])
     return success, None
 
 

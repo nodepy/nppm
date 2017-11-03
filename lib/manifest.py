@@ -1,392 +1,293 @@
-# Copyright (c) 2017 Niklas Rosenstein
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-# THE SOFTWARE.
+"""
+This module provides functionaliy to extract data from a Node.py package
+manifest and means to validate its content.
+"""
 
-from nodepy.vendor import toml
-
+from nodepy.utils import json
 import collections
-import jsonschema
 import os
-import pip
-import re
-import six
-import string
-
+import pip.req
 import semver from './semver'
 import refstring from './refstring'
 
-# Django's URL validation regex.
-url_regex = re.compile(
-  r'^(?:http|ftp)s?://' # http:// or https://
-  r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|' #domain...
-  r'localhost|' #localhost...
-  r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})' # ...or ip
-  r'(?::\d+)?' # optional port
-  r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+# A list of strings that are accepted in the manifest's "categories" field.
+categories = [
+  "CLI",
+  "Library",
+  "Framework",
+  "Application",
+  "System",
+  "Networking",
+  "GUI"
+]
+
+# Validators that report errors and warnings for invalid data in a package
+# manifest. Add new validators with the #register_validator() function.
+validators = {}
 
 
-class PythonDependency(object):
-  type = 'python'
+Field = collections.namedtuple('Field', 'cfg name value warnings errors')
 
-  def __init__(self, spec):
-    self.spec = pip.req.InstallRequirement.from_line(spec)
-
-  def __repr__(self):
-    return 'PythonDependency(name={!r}, specifier={!r})'\
-      .format(self.name, self.specifier)
-
-  @property
-  def name(self):
-    return self.req.name
-
-  @property
-  def req(self):
-    return self.spec.req
-
-  @property
-  def specifier(self):
-    return str(self.spec.req.specifier)
-
-class RegistryDependency(collections.namedtuple('C', 'name version registry private')):
-  type = 'registry'
-
-  def to_toml(self, name, version):
-    assert self.name == name, (self.name, name)
-    data = {'version': '~' + str(self.version)}
-    if self.private: data['private'] = True
-    if self.registry: data['registry'] = self.registry
-    return data
-
-class GitDependency(collections.namedtuple('C', 'name url ref recursive private')):
-  type = 'git'
-
-  def to_toml(self, name, version):
-    assert not self.name or self.name == name, (self.name, name)
-    data = {'url': self.url, 'version': '~' + str(version)}
-    if self.ref: data['ref'] = self.ref
-    if self.private: data['private'] = True
-    if not self.recursive: data['recursive'] = False
-    return data
-
-class PathDependency(collections.namedtuple('C', 'name path link private')):
-  type = 'path'
-
-  def to_toml(self, name, version):
-    assert not self.name or self.name == name, (self.name, name)
-    data = {'path': self.path}
-    if self.link: data['link'] = True
-    if self.private: data['private'] = True
-    return data
-
-
-def match_config(props, name):
-  return name in props
-
-
-class PackageManifest(object):
+def register_validator(field_name):
   """
-  This class describes a `nodepy-package.toml` package manifest in memory.
-  Check out the #schema for a description of supported fields. Any additional
-  fields are also accepted in the manifest, but not validated.
+  Decorator to register a validator for the specified *field_name*. If #None
+  is specified, the whole package manifest is passed. The decorated function
+  must accept a #Field tuple object.
+  """
+  def decorator(func):
+    validators.setdefault(field_name, []).append(func)
+    return func
+  return decorator
+
+
+@register_validator('name')
+def _validate_name(field):
+  try:
+    refstring.parse_package(field.value)
+  except ValueError as exc:
+    field.errors.append(str(exc))
+
+
+@register_validator('version')
+def _validate_version(field):
+  try:
+    semver.Version(field.value)
+  except ValueError as exc:
+    field.errors.append(str(exc))
+
+
+@register_validator('categories')
+def _validate_categories(field):
+  unknown = [x for x in field.value if x not in categories]
+  if unknown:
+    field.errors.append('Unsupported categories: {}'.format(', '.join(unknown)))
+  if len(field.value) > 5:
+    field.errors.append('Packages can only have up to 5 categories.')
+
+
+@register_validator('keywords')
+def _validate_keywords(field):
+  if any(1 for x in field.value if len(x) not in range(3, 30)):
+    field.errors.append('Keywords must be between 3 and 30 characters.')
+  if len(field.value) > 15:
+    field.errors.append('Packages can only have up to 15 keywords.')
+
+
+@register_validator('dependencies')
+def _validate_dependencies(field):
+  for key, value in field.value.items():
+    try:
+      Requirement.from_line(value, name=key, expect_name=False)
+    except ValueError as exc:
+      field.errors.append(str(exc))
+
+
+@register_validator('pip_dependencies')
+def _validate_pip_dependencies(field):
+  for key, value in field.value.items():
+    try:
+      PipRequirement.from_line(key + value)
+    except ValueError as exc:
+      field.errors.append(str(exc))
+
+
+def iter_fields(manifest, name=None):
+  """
+  Iterates over all fields in the manifest. If no *name* is specified, the
+  function will yield tuples of the format `(cfg, name, value)` where *cfg* is
+  either #None or the `cfg(...)`string that was associated with the field.
+
+  > Note: That `cfg(...)` string can be suffixed with a dot if the inline
+  > format was used, eg. for a field `cfg(...).dependencies`.
+
+  Otherwise, if *name* is specified, only fields matching that name will
+  be yielded and the items are tuples of the format `(cfg, value)`.
   """
 
-  schema = {
-    "type": "object",
-    "required": ["package"],
-    "properties": {
-      "package": {
-        "type": "object",
-        "properties": {
-          "name": {"type": "string"},
-          "version": {"type": "string"},
-          "description": {"type": "string"},
-          "repository": {"type": "string"},
-          "license": {"type": "string"},
-          "private": {"type": "boolean"},
-          "resolve_root": {"type": "string"},
-          "main": {"type": "string"},
-        },
-        "required": ["name", "version"]
-      },
-      "authors": {
-        "type": "object",
-        "additionalProperties": {
-          "type": "object",
-          "properties": {
-            "email": {"type": "string"},
-            "homepage": {"type": "string"}
-          }
-        }
-      },
-      "dependencies": {
-        "type": "object",
-        "properties": {
-          "nodepy": {
-            "type": "object",
-            # TODO: These do not seem to be checked.
-            "patternProperties": {
-              # TODO: Reference the additionalProperties here or so.
-              "cfg\([^\)]+\)": {"type": "object"}
-            },
-            "additionalProperties": {"anyOf": [
-              {"type": "string"},
-              {
-                "type": "object",
-                "properties": {
-                  "git": {"type": "string"},
-                  "ref": {"type": "string"},
-                  "recursive": {"type": "boolean"},
-                  "private": {"type": "boolean"}
-                },
-                "additionalProprties": False,
-                "required": ["git"]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "path": {"type": "string"},
-                  "link": {"type": "boolean"},
-                  "private": {"type": "boolean"}
-                },
-                "additionalProprties": False,
-                "required": ["path"]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "version": {"type": "string"},
-                  "registry": {"type": "string"}
-                },
-                "additionalProprties": False,
-                "required": ["version"]
-              }
-            ]}
-          },
-          "python": {
-            "type": "object",
-            "patternProperties": {
-              # TODO: Reference the additionalProperties here or so.
-              "cfg\([^\)]+\)": {
-                "type": "object",
-                "additionalProperties": {"type": "string"}
-              }
-            },
-            "additionalProperties": {"type": "string"}
-          }
-        }
-      },
-      "scripts": {
-        "type": "object",
-        "additionalProperties": {"type": "string"}
-      },
-      "bin": {
-        "type": "object",
-        "additionalProperties": {"type": "string"}
-      },
-      "engines": {
-        "type": "object",
-        "additionalProperties": {"type": "string"}
-      },
-      "extensions": {
-        "type": "array",
-        "items": {"type": "string"}
-      },
-      "dist": {
-        "type": "object",
-        "properties": {
-          "include_files": {"type": "array", "items": {"type": "string"}},
-          "exclude_files": {"type": "array", "items": {"type": "string"}},
-        },
-        "additionalProperties": False
-      }
-    },
-    "additionalProperties": {"type": "object"}
-  }
+  if name is not None:
+    for cfg, key, value in iter_fields(manifest):
+      if key == name:
+        yield (cfg, value)
+    return
 
-  valid_characters = frozenset(string.ascii_lowercase + string.ascii_uppercase
-                               + string.digits + '-._@/')
+  for key, value in manifest.items():
+    if key.startswith('cfg(') and key.endswith(')'):
+      if isinstance(value, dict):
+        for k, v in value.items(): yield (key, k, v)
+        continue
+    elif key.startswith('cfg('):
+      left, _, right = key.partition('.')
+      if left.startswith('cfg(') and left.endswith(')'):
+        yield (left + '.', right, value)
+        continue
+    yield (None, key, value)
 
-  def __init__(self, filename, directory, name, version, description=None,
-      authors=None, license=None, dependencies=None, python_dependencies=None,
-      scripts=None, bin=None, engines=None, dist=None,
-      repository=None, private=False, resolve_root=None, main=None,
-      extensions=None):
-    if len(name) < 2 or len(name) > 127:
-      raise ValueError('packag name must be at least 2 and maximum 127 characters')
-    if name.startswith('_') or name.startswith('.'):
-      raise ValueError('package name can not start with _ or .')
-    if set(name).difference(self.valid_characters):
-      raise ValueError('package name contains invalid characters')
-    refstring.parse_package(name)
-    if repository is not None and not url_regex.match(repository):
-      raise ValueError('invalid repository: "{}" is not a URL'.format(repository))
-    self.filename = filename
+
+def load(file, sorted=True, directory=None):
+  """
+  Loads a JSON manifest from the specified *file*. The file may be a filename
+  or a file-like object. With *sorted* set to #True, the JSON will be loaded
+  into a #collections.OrderedDict.
+  """
+
+  if isinstance(file, str):
+    file = open(file, 'r')
+    close = True
+  else:
+    close = False
+
+  if not directory and getattr(file, 'name', None):
+    directory = os.path.dirname(os.path.abspath(file.name))
+
+  object_hook = collections.OrderedDict if sorted else None
+  try:
+    return Manifest(directory, json.load(file, object_hook=object_hook))
+  finally:
+    if close:
+      file.close()
+
+
+def validate(payload):
+  """
+  Apply all registered #validators for the manifest *payload*. A list of
+  #Field objects will be returned for which at least one warning or error
+  was issued.
+  """
+
+  fields = []
+  for cfg, name, value in iter_fields(payload):
+    field = Field(cfg, name, value, [], [])
+    for valfunc in validators.get(name, []):
+      valfunc(field)
+    if field.warnings or field.errors:
+      fields.append(field)
+  return fields
+
+
+class Manifest(dict):
+
+  def __init__(self, directory, *args, **kwargs):
+    super(Manifest, self).__init__(*args, **kwargs)
     self.directory = directory
-    self.name = name
-    self.version = version
-    self.authors = authors
-    self.repository = repository
-    self.description = description
-    self.license = license
-    self.dependencies = [] if dependencies is None else dependencies
-    self.python_dependencies = {} if python_dependencies is None else python_dependencies
-    self.scripts = {} if scripts is None else scripts
-    self.bin = {} if bin is None else bin
-    self.dist = {} if dist is None else dist
-    self.private = private
-    self.resolve_root = resolve_root
-    self.main = main
-    self.extensions = extensions
-
-  def __eq__(self, other):
-    if isinstance(other, PackageManifest):
-      return (self.filename, self.directory, self.name, self.version) == \
-          (other.filename, other.directory, other.name, other.version)
-    return False
-
-  def __ne__(self, other):
-    return not (self == other)
-
-  def __repr__(self):
-    return '<PackageManifest "{}">'.format(self.identifier)
 
   @property
   def identifier(self):
-    return '{}@{}'.format(self.name, self.version)
+    return '{}@{}'.format(self['name'], self['version'])
+
+  def iter_fields(self, name=None):
+    return iter_fields(self, name)
 
 
-class InvalidPackageManifest(Exception):
+class PipRequirement(pip.req.InstallRequirement):
+
+  @classmethod
+  def from_line(cls, line, *args, **kwargs):
+    try:
+      return super(PipRequirement, cls).from_line(line, *args, **kwargs)
+    except pip.exceptions.InstallationError:
+      raise ValueError('invalid Pip requirement: {!r}'.format(line))
+
+
+class Requirement(object):
   """
-  Raised from #parse() and #parse_dict() when the JSON data is does not
-  match the #PackageManifest.schema and the additional constraints, or if
-  the parsed file is not valid JSON.
+  Represents a Node.py dependency. The default value of all flags are #None,
+  which indicates that the flag may inherit the value from somewhere else.
   """
 
-  def __init__(self, filename, cause):
-    self.filename = filename
-    self.cause = cause
+  FLAGS = ('pure', 'internal', 'link', 'optional', 'recursive')
+  OPTIONS = ('registry',)
+
+  def __init__(self, name, selector=None, path=None, git_url=None,
+               pure=None, internal=None, link=None, optional=None,
+               recursive=False, registry=None):
+    assert isinstance(name, str) or name is None, name
+    assert isinstance(selector, semver.Selector) or selector is None, selector
+    assert isinstance(path, str) or path is None, path
+    assert isinstance(git_url, str) or git_url is None, git_url
+    self.name = name
+    self.selector = selector
+    self.path = path
+    self.git_url = git_url
+    self.pure = pure
+    self.internal = internal
+    self.link = link
+    self.optional = optional
+    self.recursive = recursive
+    self.registry = registry
 
   def __str__(self):
-    if self.filename:
-      return 'In file "{}": {}'.format(self.filename, self.cause)
-    return str(self.cause)
+    parts = []
+    for flag in self.FLAGS:
+      if getattr(self, flag):
+        parts.append('--{}'.format(flag))
+    for key in self.OPTIONS:
+      value = getattr(self, key)
+      if value:
+        parts.append('--{}={}'.format(key, value))
+    name = (self.name + '@' if self.name else '')
+    if self.selector:
+      name += str(self.selector)
+    elif self.path:
+      name += self.path
+    elif self.git_url:
+      name += 'git+' + self.git_url
+    parts.append(name)
+    return ' '.join(parts)
 
+  @classmethod
+  def from_line(cls, line, *args, **kwargs):
+    """
+    Parse a line that contains the all information about the requirement.
 
-def parse(filename, config_props, directory=None):
-  """
-  Parses a manifest file and returns it. If *directory* is #None, it will
-  be derived from the *filename*.
+    # Parameter
+    line (str): The line to parse.
+    *args, **kwargs: Additional arguments passed to the #Requirement
+        constructor.
+    expect_name (bool): #True if a name is expected to be parsed from the
+        *line*, #False otherwise.
+    name (str): The name if no name is expected to be parsed from *line*.
+    """
 
-  # Raises
-  InvalidPackageManifest: If the `nodepy-package.toml` file is invalid.
-  """
+    name = kwargs.pop('name', None)
+    expect_name = kwargs.pop('expect_name', True)
+    original_line = line = line.strip()
 
-  if not directory:
-    directory = os.path.dirname(filename) or '.'
-  with open(filename, 'r') as fp:
-    try:
-      data = toml.load(fp)
-    except json.JSONDecodeError as exc:
-      raise InvalidPackageManifest(filename, exc)
-    return parse_dict(data, config_props, filename, directory, copy=False)
+    # Parse the flags.
+    kwargs = {}
+    while line.startswith('--'):
+      index = line.index(' ')
+      if index < 0:
+        raise ValueError('invalid requirement: {!r}'.format(original_line))
+      flag, _, value = line[2:index].partition('=')
+      if value and flag not in cls.OPTIONS:
+        raise ValueError('invalid option "{}" in {!r}'.format(flag, original_line))
+      if not value and flag not in cls.FLAGS:
+        raise Validators('invalid flag "{}" in {!r}'.format(flag, original_line))
+      kwargs[flag] = value if value else True
+      line = line[index+1:].lstrip()
 
+    if expect_name:
+      if '@' not in line:
+        raise ValueError('invalid requirement (missing name): {!r}'.format(original_line))
+      left, _, right = line.partition('@')
+      if not left.startswith('git+'):
+        name = left
+        line = right.rstrip()
 
-def parse_dict(data, config_props, filename=None, directory=None, copy=True):
-  """
-  Takes a Python dictionary that represents a manifest from a JSON source
-  and converts it to a #PackageManifest. The *filename* and *directory* can
-  be set to #None depending on whether you want the respective members in
-  the #PackageManifest to be #None.
-  """
-
-  try:
-    jsonschema.validate(data, PackageManifest.schema)
-  except jsonschema.ValidationError as exc:
-    raise InvalidPackageManifest(filename, exc)
-
-  if copy:
-    data = data.copy()
-
-  kwargs = {}
-
-  # Validate the package name.
-  try:
-    refstring.parse_package(data['package']['name'])
-    kwargs['name'] = data['package']['name']
-  except ValueError as exc:
-    raise InvalidPackageManifest(filename, exc)
-
-  try:
-    data['package']['version'] = semver.Version(data['package']['version'])
-    kwargs['version'] = data['package']['version']
-  except ValueError as exc:
-    raise InvalidPackageManifest(filename, exc)
-
-  for k in 'private,resolve_root,main,extensions'.split(','):
-    if k in data['package']:
-      kwargs[k] = data['package'][k]
-
-  def match_dep(dep, sel):
-    if isinstance(sel, str):
-      sel = {'version': sel}
-    if 'version' in sel:
-      dep_data = RegistryDependency(dep, semver.Selector(sel['version']),
-                                    sel.get('registry'),
-                                    sel.get('private', False))
-    elif 'git' in sel:
-      dep_data = GitDependency(dep, sel['git'], sel.get('ref', None),
-                              sel.get('recursive', True),
-                              sel.get('private', False))
-    elif 'path' in sel:
-      dep_data = PathDependency(dep, sel['path'], sel.get('link', False),
-                                sel.get('private', False))
+    if line.startswith('git+'):
+      kwargs['git_url'] = line[4:]
+    elif cls._is_path(line):
+      kwargs['path'] = line
     else:
-      raise RuntimeError('jsonschema should\'ve validated this')
-    return dep_data
+      kwargs['selector'] = semver.Selector(line)
 
-  dependencies = []
-  for dep, sel in data.get('dependencies', {}).get('nodepy', {}).items():
-    if dep.startswith('cfg(') and dep.endswith(')'):
-      if match_config(config_props, dep[4:-1]):
-        for dep, sel in sel.items():
-          dependencies.append(match_dep(dep, sel))
-      continue
-    else:
-      dependencies.append(match_dep(dep, sel))
-  kwargs['dependencies'] = dependencies
-  kwargs['python_dependencies'] = data.get('dependencies', {}).get('python', {})
-  for kw in tuple(kwargs['python_dependencies'].keys()):
-    if kw.startswith('cfg(') and kw.endswith(')'):
-      data = kwargs['python_dependencies'].pop(kw)
-      if match_config(config_props, kw[4:-1]):
-        kwargs['python_dependencies'].update(data)
+    if 'registry' in kwargs and 'selector' not in kwargs:
+      raise ValueError('invalid requirement (--registry can only be specified '
+        ' for dependencies that need to be resolved in a registry): {!r}'
+        .format(original_line))
 
-  engines = {}
-  for eng, sel in data.get('engines', {}).items():
-    engines[eng] = semver.Selector(sel)
-  kwargs['engines'] = engines
+    return cls(name, **kwargs)
 
-  for k in 'authors,description,repository,license,scripts,bin,dist'.split(','):
-    if k in data:
-      kwargs[k] = data[k]
-
-  try:
-    return PackageManifest(filename, directory, **kwargs)
-  except ValueError as exc:
-    six.raise_from(InvalidPackageManifest(filename, exc), exc)
+  @staticmethod
+  def _is_path(s):
+    return (s.startswith('./') or s.startswith('.\\') or os.path.isabs(s))

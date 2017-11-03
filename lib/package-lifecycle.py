@@ -58,7 +58,7 @@ class PackageLifecycle(object):
   @staticmethod
   def find_package_json(path):
     """
-    Finds the first `nodepy-package.toml` file in *path* or any of its parent
+    Finds the first `nodepy.json` file in *path* or any of its parent
     directories and returns it. Returns #None if no file can be found.
     """
 
@@ -69,8 +69,7 @@ class PackageLifecycle(object):
       if fn.is_file():
         return str(fn)
 
-  def __init__(self, config_props, directory='.', dist_dir=None, manifest=None, allow_no_manifest=False):
-    self.config_props = config_props
+  def __init__(self, directory='.', dist_dir=None, manifest=None, allow_no_manifest=False):
     if manifest is None:
       if not dist_dir:
         dist_dir = os.path.join(directory, 'dist')
@@ -79,20 +78,15 @@ class PackageLifecycle(object):
         print('Error: {} not found'.format(env.PACKAGE_MANIFEST))
         exit(1)
       if fn:
-        try:
-          manifest = _manifest.parse(fn, self.config_props)
-        except _manifest.InvalidPackageManifest as e:
-          if allow_no_manifest:
-            logger.warn('Invalid package manifest (%s): %s', e.filename, str(e.cause).split('\n')[0])
-          else:
-            raise
+        manifest = _manifest.load(fn)
+
     self.manifest = manifest
     self.dist_dir = dist_dir
 
   def dist(self):
     self.run('pre-dist', [], script_only=True)
-    filename = get_package_archive_name(self.manifest.name,
-        self.manifest.version)
+    filename = get_package_archive_name(self.manifest['name'],
+        self.manifest['version'])
     filename = os.path.join(self.dist_dir, filename)
     if not os.path.isdir(self.dist_dir):
       os.makedirs(self.dist_dir)
@@ -123,7 +117,7 @@ class PackageLifecycle(object):
     # version, let the user confirm that he/she really wants to upload the file.
     basename = os.path.basename(filename)
     if basename.startswith(self.manifest.identifier) and basename \
-        != registry.get_package_archive_name(self.manifest.name, self.manifest.version):
+        != registry.get_package_archive_name(self.manifest['name'], self.manifest['version']):
       print('This looks a like a package distribution archive, but it ')
       print('does not match with the package\'s current version. Do you ')
       print('really want to upload this file? [y/n] ')
@@ -142,11 +136,11 @@ class PackageLifecycle(object):
     if dry:
       print('Not actually uploading things... (dry mode)')
     else:
-      msg = registry.upload(self.manifest.name, self.manifest.version, filename, force)
+      msg = registry.upload(self.manifest['name'], self.manifest['version'], filename, force)
       print(msg)
 
   def publish(self, user, password, force, dry, registry):
-    if self.manifest.private:
+    if self.manifest['private']:
       print('Error: the package is marked as private and can not be published.')
       exit(1)
     self.run('pre-publish', [], script_only=True)
@@ -164,7 +158,7 @@ class PackageLifecycle(object):
     oldpath = os.environ.get('PATH', '')
     os.environ['PATH'] = bindir + os.pathsep + oldpath
     try:
-      if (not self.manifest or script not in self.manifest.scripts) and not script_only:
+      if (not self.manifest or script not in self.manifest.get('scripts', {})) and not script_only:
         self._run_command(shlex_quote(script) + ' ' + ' '.join(map(shlex_quote, args)))
       else:
         self._run_script(script, args=args)
@@ -178,14 +172,14 @@ class PackageLifecycle(object):
     for the specified event is specified.
     """
 
-    if script not in self.manifest.scripts:
+    if script not in self.manifest.get('scripts', {}):
       return
 
     args = list(args)
     if script != 'pre-script':
       self._run_script('pre-script', [script] + args)
 
-    request = self.manifest.scripts[script].strip()
+    request = self.manifest.get('scripts', {})[script].strip()
     if request.startswith('!'):
       return self._run_command(request[1:])
     else:

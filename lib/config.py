@@ -33,7 +33,7 @@ except ImportError:
   except ImportError:
     from io import StringIO
 
-NPPM_CONFIG = '~/.nppmrc'
+NPPM_CONFIG = '~/.nodepy/pm-config.ini'
 
 
 class NoSuchSection(KeyError):
