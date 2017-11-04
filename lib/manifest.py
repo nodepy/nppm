@@ -3,7 +3,7 @@ This module provides functionaliy to extract data from a Node.py package
 manifest and means to validate its content.
 """
 
-from nodepy.utils import json, compat
+from nodepy.utils import as_text, json
 import collections
 import os
 import pip.req
@@ -202,16 +202,16 @@ class Requirement(object):
                pure=None, internal=None, link=None, optional=None,
                recursive=False, registry=None):
     assert isinstance(selector, semver.Selector) or selector is None, selector
-    self.name = compat.as_text(name) if name is not None else None
+    self.name = as_text(name) if name is not None else None
     self.selector = selector
-    self.path = compat.as_text(path) if path is not None else None
+    self.path = as_text(path) if path is not None else None
     self.git_url = git_url
     self.pure = pure
     self.internal = internal
     self.link = link
     self.optional = optional
     self.recursive = recursive
-    self.registry = compat.as_text(registry) if registry is not None else None
+    self.registry = as_text(registry) if registry is not None else None
 
   def __str__(self):
     parts = []
