@@ -7,6 +7,7 @@ from nodepy.utils import json
 import collections
 import os
 import pip.req
+import six
 import semver from './semver'
 import refstring from './refstring'
 
@@ -130,7 +131,7 @@ def load(file, sorted=True, directory=None):
   into a #collections.OrderedDict.
   """
 
-  if isinstance(file, str):
+  if isinstance(file, six.string_types):
     file = open(file, 'r')
     close = True
   else:

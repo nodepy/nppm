@@ -438,7 +438,7 @@ class Installer:
     Installs from a requirement line or object.
     """
 
-    if isinstance(req, str):
+    if isinstance(req, six.string_types):
       req = manifest.Requirement.from_line(req)
 
     registry = None
@@ -625,7 +625,7 @@ class Installer:
             package.name, package.version))
         return True, (package.name, package.version)
 
-    if isinstance(regs, str):
+    if isinstance(regs, six.string_types):
       regs = [_registry.RegistryClient(regs, regs)]
     elif isinstance(regs, _registry.RegistryClient):
       regs = [regs]

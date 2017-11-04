@@ -24,6 +24,7 @@ import getpass
 import nodepy
 import os
 import shlex
+import six
 import subprocess
 import tarfile
 
@@ -62,7 +63,7 @@ class PackageLifecycle(object):
     directories and returns it. Returns #None if no file can be found.
     """
 
-    if isinstance(path, str):
+    if isinstance(path, six.string_types):
       path = pathlib.Path(path)
     for directory in nodepy.utils.path.upiter(path):
       fn = directory.joinpath(env.PACKAGE_MANIFEST)
