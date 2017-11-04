@@ -1,0 +1,17 @@
+language: python
+python:
+- "2.7"
+- "3.3"
+- "3.4"
+- "3.5"
+- "3.6"
+- "3.7-dev"
+- "nightly"
+install:
+- pip install --upgrade pip>=8.0.0
+- pip --version
+- pip install git+https://github.com/nodepy/nodepy.git@develop
+script:
+- nodepy --version
+- nodepy scripts/install
+- nodepypm --version
