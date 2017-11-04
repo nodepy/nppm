@@ -24,7 +24,7 @@ from nodepy.utils import pathlib
 
 import contextlib
 import errno
-import nodepy
+import nodepy.main
 import os
 import pip.commands
 import shlex
@@ -58,6 +58,8 @@ def _makedirs(path):
 
 
 def _match_any_pattern(filename, patterns, gitignore_style=False):
+  if not patterns:
+    return False
   if os.name == 'nt':
     filename = filename.replace('\\', '/')
   for pattern in patterns:

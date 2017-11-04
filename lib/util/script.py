@@ -48,7 +48,7 @@ class ScriptMaker:
     if not self.path and not self.pythonpath:
       return ''
     code = '# Initialize environment variables (from ScriptMaker).\n'\
-           'import os,sys,nodepy\n'
+           'import os,sys,nodepy.runtime\n'
     if self.path:
       path = [os.path.abspath(x) for x in self.path]
       code += 'os.environ["PATH"] = os.pathsep.join({path!r}) + '\
@@ -118,7 +118,7 @@ class ScriptMaker:
     #  args.append(reference_dir)
     args.append(filename)
 
-    code = 'import sys, nodepy;\n'\
+    code = 'import sys, nodepy.main;\n'\
            'sys.argv = [sys.argv[0]] + {args!r} + sys.argv[1:]\n'\
            'sys.exit(nodepy.main.main())\n'.format(args=args)
     return self.make_python(script_name, code)

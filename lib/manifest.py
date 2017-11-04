@@ -267,12 +267,11 @@ class Requirement(object):
       line = line[index+1:].lstrip()
 
     if expect_name:
-      if '@' not in line:
-        raise ValueError('invalid requirement (missing name): {!r}'.format(original_line))
-      left, _, right = line.partition('@')
-      if not left.startswith('git+'):
-        name = left
-        line = right.rstrip()
+      if '@' in line:
+        left, _, right = line.partition('@')
+        if not left.startswith('git+'):
+          name = left
+          line = right.rstrip()
 
     if line.startswith('git+'):
       kwargs['git_url'] = line[4:]

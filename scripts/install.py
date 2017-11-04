@@ -8,7 +8,7 @@ if require.main != module:
 import argparse
 import codecs
 import os
-import nodepy.runtime
+import nodepy.main, nodepy.runtime
 import shutil
 import subprocess
 import sys
@@ -54,7 +54,7 @@ def main():
 
   print("installing nodepy-pm Pip dependencies...")
   cmd = ['--prefix', dirs['pip_prefix']]
-  for key, value in module.package.payload['dependencies']['python'].items():
+  for key, value in module.package.payload['pip_dependencies'].items():
     cmd.append(key + value)
 
   with brewfix():
