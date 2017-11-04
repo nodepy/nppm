@@ -53,7 +53,7 @@ def main():
   dirs = get_directories(location)
 
   print("installing nodepy-pm Pip dependencies...")
-  cmd = ['--prefix', dirs['pip_prefix']]
+  cmd = ['--prefix', dirs['pip_prefix'], '--ignore-installed']
   for key, value in module.package.payload['pip_dependencies'].items():
     cmd.append(key + value)
 
