@@ -1,6 +1,7 @@
 ## nodepy-pm
 
-<img src="https://img.shields.io/badge/License-MIT-yellow.svg">
+![](https://img.shields.io/badge/License-MIT-yellow.svg)
+[![Build Status](https://travis-ci.org/nodepy/nodepy-pm.svg?branch=master)](https://travis-ci.org/nodepy/nodepy-pm)
 
   [Node.py]: https://nodepy.org/
 
