@@ -1,8 +1,10 @@
-## The Node.py Package Manager (WIP)
+## nodepy-pm
 
 <img src="https://img.shields.io/badge/License-MIT-yellow.svg">
 
-This is the Node.py Package Manager. It is recommended to install the package
+  [Node.py]: https://nodepy.org/
+
+This is the [Node.py] Package Manager. It is recommended to install the package
 manager with the remote install script available at
 https://nodepy.org/install-pm.
 
