@@ -95,13 +95,12 @@ def walk_package_files(manifest):
     exclude = manifest.get('exclude', []) + default_exclude_patterns
     ignore_file = os.path.join(manifest.directory, '.gitignore')
     if os.path.isfile(ignore_file):
-      inpat.append('.gitignore')
       with open(ignore_file) as fp:
         for line in fp:
           line = line.strip()
           if not line: continue
           if line.startswith('#') or line.startswith('!'): continue
-          expat.append(line)
+          exclude.append(line)
   else:
     exclude = None
 

@@ -19,7 +19,7 @@
     "README.md"
   ],
   "bin": {
-    "nodepypm${py}": "index.py"
+    "nodepy-pm${py}": "index.py"
   },
   "pip_dependencies": {
     "appdirs": ">=1.4.2",
@@ -30,6 +30,6 @@
     "six": ">=1.11.0"
   },
   "cfg(dev).dependencies": {
-    "nodepy-nose": "git+https://github.com/nodepy/nodepy-nose.git@0.0.4"
+    "nodepy-nosetests": "git+https://github.com/nodepy/nodepy-nosetests.git@0.0.5"
   }
 }
