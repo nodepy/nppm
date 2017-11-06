@@ -11,6 +11,7 @@ if require.main != module:
   raise RuntimeError('must not be required')
 
 import argparse
+import codecs
 import contextlib
 import errno
 import io
@@ -84,7 +85,7 @@ def tempdir(suffix='', prefix='', dir=None, ignore_errors_on_delete=False):
 def gh_api(endpoint, raw=False):
   url = 'https://api.github.com/{}'.format(endpoint)
   response = urlopen(url)
-  return response if raw else json.load(response)
+  return response if raw else json.load(codecs.getreader('utf8')(response))
 
 
 def main():
