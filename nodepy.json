@@ -37,6 +37,6 @@
     "six": ">=1.11.0"
   },
   "cfg(dev).dependencies": {
-    "nodepy-nosetests": "git+https://github.com/nodepy/nodepy-nosetests.git@v0.0.5"
+    "nodepy-nosetests": "git+https://github.com/nodepy/nodepy-nosetests.git@v0.0.6"
   }
 }
