@@ -46,7 +46,7 @@ import {RegistryClient, get_package_archive_name} from './registry'
 import env from './env'
 
 
-def find_nearest_modules_directory(path):
+def find_nearest_bin_directory(path):
   for path in nodepy.utils.path.upiter(path):
     path = path.joinpath(env.PROGRAM_DIRECTORY)
     if path.is_dir():
@@ -151,13 +151,11 @@ class PackageLifecycle(object):
     self.run('post-publish', [], script_only=True)
 
   def run(self, script, args, script_only=False):
-    modules_dir = find_nearest_modules_directory(pathlib.Path.cwd())
-    if modules_dir:
-      bindir = str(modules_dir.parent.joinpath(env.PROGRAM_DIRECTORY))
-    else:
+    bindir = find_nearest_bin_directory(pathlib.Path.cwd())
+    if not bindir:
       bindir = env.get_directories('local')['bin']
     oldpath = os.environ.get('PATH', '')
-    os.environ['PATH'] = bindir + os.pathsep + oldpath
+    os.environ['PATH'] = str(bindir) + os.pathsep + oldpath
     try:
       if (not self.manifest or script not in self.manifest.get('scripts', {})) and not script_only:
         self._run_command(shlex_quote(script) + ' ' + ' '.join(map(shlex_quote, args)))
@@ -181,7 +179,7 @@ class PackageLifecycle(object):
       self._run_script('pre-script', [script] + args)
 
     request = self.manifest.get('scripts', {})[script].strip()
-    if request.startswith('!'):
+    if request.startswith('$'):
       return self._run_command(request[1:])
     else:
       args = shlex.split(request) + args
@@ -190,6 +188,7 @@ class PackageLifecycle(object):
   def _run_command(self, command):
     # TODO: On Windows, fall back to CMD.exe if SHELL is not defined.
     command = [os.environ['SHELL'], '-c', command]
+    print('$', ' '.join(shlex_quote(x) for x in command))
     try:
       return subprocess.call(command)
     except (OSError, IOError) as exc:
