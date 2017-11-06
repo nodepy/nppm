@@ -7,7 +7,6 @@ from nodepy.utils import as_text, json
 import collections
 import os
 import pip.req
-import pyparsing
 import six
 import cfgparser from './cfgparser'
 import semver from '../semver'
