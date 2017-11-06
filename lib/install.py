@@ -41,7 +41,7 @@ import _config from './config'
 import _download from './util/download'
 import _script from './util/script'
 import refstring from './refstring'
-import pathutils from './util/pathutils'
+import decorators from './util/decorators'
 import brewfix from './brewfix'
 import PackageLifecycle from './package-lifecycle'
 import env, { PACKAGE_MANIFEST } from './env'
@@ -137,6 +137,7 @@ class Installer:
       self.script.path.append(self.dirs['pip_bin'])
       self.script.pythonpath.extend([self.dirs['pip_lib']])
     self.installed_python_libs = {}
+    self.currently_installing = []  # stack of currently installing packages
 
   @contextlib.contextmanager
   def pythonpath_update_context(self):
@@ -175,7 +176,7 @@ class Installer:
       return None
     return mf
 
-  def find_package(self, package):
+  def find_package(self, package, internal=False):
     """
     Finds an installed package and returns its #PackageManifest.
     Raises #PackageNotFound if the package could not be found, or possibly
@@ -186,7 +187,10 @@ class Installer:
     """
 
     refstring.parse_package(package)
-    dirname = os.path.join(self.dirs['packages'], package)
+    if internal and self.currently_installing:
+      dirname = os.path.join(self.currently_installing[-1][1], package)
+    else:
+      dirname = os.path.join(self.dirs['packages'], package)
     if not os.path.isdir(dirname):
       raise PackageNotFound(package)
 
@@ -203,13 +207,13 @@ class Installer:
     else:
       return self._load_manifest(manifest_fn, directory=dirname)
 
-  def uninstall(self, package_name):
+  def uninstall(self, package_name, internal=False):
     """
     Uninstalls a package by name.
     """
 
     try:
-      manifest = self.find_package(package_name)
+      manifest = self.find_package(package_name, internal)
     except PackageNotFound:
       print('Package "{}" not installed'.format(package_name))
       return False
@@ -305,7 +309,7 @@ class Installer:
       if not isinstance(req, manifest.Requirement):
         req = manifest.Requirement.from_line(req)
       try:
-        have_package = self.find_package(name)
+        have_package = self.find_package(name, req.internal)
       except PackageNotFound as exc:
         install_deps.append((name, req))
       else:
@@ -444,22 +448,23 @@ class Installer:
 
     if req.selector:
       return self.install_from_registry(req.name, req.selector, dev=dev,
-        registry=registry, private=req.internal)
+        registry=registry, internal=req.internal)
     if req.git_url:
-      return self.install_from_git(req.git_url, req.recursive, req.internal)
+      return self.install_from_git(req.git_url, req.recursive, internal=req.internal)
     if req.path:
       if os.path.isfile(req.path):
         if req.link:
           print('Warning: Can not install in develop mode from archive "{}"'
             .format(req.path))
-        success, mnf = self.install_from_archive(req.path, dev=dev)
+        success, mnf = self.install_from_archive(req.path, dev=dev, internal=req.internal)
       else:
-        success, mnf = self.install_from_directory(req.path, req.link, dev=dev)
+        success, mnf = self.install_from_directory(req.path, req.link, dev=dev, internal=req.internal)
       info = (mnf['name'], mnf['version']) if success else None
       return success, info
 
+  @decorators.finally_()
   def install_from_directory(self, directory, develop=False, dev=False,
-      expect=None, movedir=False):
+      expect=None, movedir=False, internal=False):
     """
     Installs a package from a directory. The directory must have a
     `nodepy.json` file. If *expect* is specified, it must be a tuple of
@@ -478,6 +483,7 @@ class Installer:
     movedir (bool): This is set by #install_from_git() to move the source
       directory to the target install directory isntead of a normal
       install.
+    internal (bool): Install as an internal dependency.
 
     # Returns
     (success, manifest)
@@ -501,8 +507,16 @@ class Installer:
           .format(expect[0], expect[1], manifest.identifier, directory))
       return False, manifest
 
-    print('Installing "{}"...'.format(manifest.identifier))
-    target_dir = os.path.join(self.dirs['packages'], manifest['name'])
+    if internal and self.currently_installing:
+      target_dir = os.path.join(self.currently_installing[-1][1], env.MODULES_DIRECTORY, manifest['name'])
+      print('Installing "{}" as internal dependency of "{}" ...'.format(
+        manifest.identifier, self.currently_installing[-1][0].identifier))
+    else:
+      print('Installing "{}"...'.format(manifest.identifier))
+      target_dir = os.path.join(self.dirs['packages'], manifest['name'])
+
+    self.currently_installing.append((manifest, target_dir))
+    decorators.finally_(lambda: self.currently_installing.pop())
 
     # Error if the target directory already exists. The package must be
     # uninstalled before it can be installed again.
@@ -597,7 +611,7 @@ class Installer:
     finally:
       _rmtree(directory)
 
-  def install_from_registry(self, package_name, selector, dev=False, regs=None, private=False):
+  def install_from_registry(self, package_name, selector, dev=False, regs=None, internal=False):
     """
     Install a package from a registry.
 
@@ -605,11 +619,9 @@ class Installer:
     (success, (package_name, package_version))
     """
 
-    # TODO: Handle `private` argument
-
     # Check if the package already exists.
     try:
-      package = self.find_package(package_name)
+      package = self.find_package(package_name, internal)
     except PackageNotFound:
       pass
     else:
@@ -653,14 +665,14 @@ class Installer:
       with tempfile.NamedTemporaryFile(suffix='_' + filename, delete=False) as tmp:
         progress = _download.DownloadProgress(30, prefix='  ')
         _download.download_to_fileobj(response, tmp, progress=progress)
-      success = self.install_from_archive(tmp.name, dev=dev, expect=(package_name, info.version))
+      success = self.install_from_archive(tmp.name, dev=dev, expect=(package_name, info.version), internal=internal)
     finally:
       if tmp and os.path.isfile(tmp.name):
         os.remove(tmp.name)
 
     return success, (package_name, info.version)
 
-  def install_from_git(self, url, recursive=True, private=False):
+  def install_from_git(self, url, recursive=True, internal=False):
     """
     Install a package from a Git repository. The package will first be cloned
     into a temporary directory, that be copied into the correct location and
@@ -690,7 +702,7 @@ class Installer:
       return False, None
 
     with later(_rmtree, dest):
-      success, manifest = self.install_from_directory(dest, movedir=True)
+      success, manifest = self.install_from_directory(dest, movedir=True, internal=internal)
 
     if manifest:
       return success, (manifest['name'], manifest['version'])
