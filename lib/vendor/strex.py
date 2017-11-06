@@ -304,9 +304,9 @@ class Lexer(object):
     """
     Updates the #rules_map dictionary and #skippable_rules list based on the
     #rules list. Must be called after #rules or any of its items have been
-    modified.
+    modified. The same rule name may appear multiple times.
+
     # Raises
-    ValueError: if a rule name is duplicate
     TypeError: if an item in the `rules` list is not a rule.
     """
 
@@ -315,9 +315,7 @@ class Lexer(object):
     for rule in self.rules:
       if not isinstance(rule, Rule):
         raise TypeError('item must be Rule instance', type(rule))
-      if rule.name in self.rules_map:
-        raise ValueError('duplicate rule name', rule.name)
-      self.rules_map[rule.name] = rule
+      self.rules_map.setdefault(rule.name, []).append(rule)
       if rule.skip:
         self.skippable_rules.append(rule)
 
@@ -408,10 +406,13 @@ class Lexer(object):
         for rule_name in expectation:
           if rule_name == eof:
             continue
-          rule = self.rules_map.get(rule_name)
-          if rule is None:
+          rules = self.rules_map.get(rule_name)
+          if rules is None:
             raise ValueError('unknown rule', rule_name)
-          value = rule.tokenize(self.scanner)
+          for rule in rules:
+            value = rule.tokenize(self.scanner)
+            if value:
+              break
           if value:
             break
           self.scanner.restore(cursor)

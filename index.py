@@ -182,7 +182,7 @@ def version():
   help='Overwrite existing installed packages if it becomes necessary (eg. '
        'when a package link is broken, the package can no longer be found but '
        'its install directory still exists).')
-@click.option('--private/--no-private', default=None,
+@click.option('--internal/--no-internal', default=None,
   help='Install the dependencies of specified packages as private '
        'dependencies (resulting in a non-flat dependency tree by default). '
        'Applies only to the dependencies specified on the command-line and '
@@ -191,7 +191,7 @@ def version():
 def install(packages, upgrade, develop, global_, root, ignore_installed,
             packagedir, recursive, pip_separate_process, pip_use_target_option,
             info, dev, save, save_dev, save_ext, verbose, registry, force,
-            private):
+            internal):
   """
   Installs one or more Node.Py or Pip packages.
   """
@@ -255,7 +255,9 @@ def install(packages, upgrade, develop, global_, root, ignore_installed,
     if pkg.startswith('~'):
       pip_packages.append(manifest.PipRequirement.from_line(pkg[1:]))
     else:
-      npy_packages.append(manifest.Requirement.from_line(pkg, expect_name=True))
+      req = manifest.Requirement.from_line(pkg, expect_name=True)
+      req.inherit_values(link=develop, registry=registry, internal=internal)
+      npy_packages.append(req)
 
   # Install Python dependencies.
   python_deps = {}
@@ -273,48 +275,54 @@ def install(packages, upgrade, develop, global_, root, ignore_installed,
       return 1
 
   # Install Node.py dependencies.
-  installed_info = {}
+  req_names = {}
   for req in npy_packages:
     success, info = installer.install_from_requirement(req)
     if not success:
       error('Installation failed')
     if req.name:
       assert info[0] == pkg.name, (info, pkg)
-    installed_info[pkg] = info
+    req_names[req] = info[0]
+    if req.type == 'registry':
+      req.selector = semver.Selector('~' + str(info[1]))
 
   installer.relink_pip_scripts()
 
-  if (save or save_dev):
-    deps = manifest_data.setdefault('dependencies', {})
+
+  if save_dev:
+    if 'cfg(dev)' in manifest_data:
+      deps = lambda: manifest_data['cfg(dev)'].setdefault('dependencies', {})
+      pip_deps = lambda: manifest_data['cfg(dev)'].setdefault('pip_dependencies', {})
+    else:
+      deps = lambda: manifest_data.setdefault('cfg(dev).dependencies', {})
+      pip_deps = lambda: manifest_data.setdefault('cfg(dev).pip_dependencies', {})
+  elif save:
+    deps = lambda: manifest_data.setdefault('dependencies', {})
+    pip_deps = lambda: manifest_data.setdefault('pip_dependencies', {})
+
   if (save or save_dev) and npy_packages:
     print('Saved dependencies:')
-    data = deps.setdefault('nodepy', {})
-    if save_dev: data = data.setdefault("cfg(development)", {})
-    for pkg in npy_packages:
-      info = installed_info[pkg]
-      data[info[0]] = pkg.to_json(name=info[0], version=info[1])
-      print("  {}: {}".format(info[0], data[info[0]]))
+    for req in npy_packages:
+      deps()[req_names[req]] = str(req)
+      print("  {}: {}".format(req_names[req], str(req)))
 
   if (save or save_dev) and python_deps:
-    data = deps.setdefault('python', {})
-    if save_dev: data = data.setdefault("cfg(development)", {})
-    print('Saved python dependencies:')
     for pkg_name, dist_info in installer.installed_python_libs.items():
       if not dist_info:
         print('warning: could not find .dist-info of module "{}"'.format(pkg_name))
-        data[pkg_name] = ''
+        pip_deps()[pkg_name] = ''
         print('  "{}": ""'.format(pkg_name))
       else:
-        data[dist_info['name']] = '>=' + dist_info['version']
+        pip_deps()[dist_info['name']] = '>=' + dist_info['version']
         print('  "{}": "{}"'.format(dist_info['name'], dist_info['version']))
 
-  if save_ext and save_deps:
-    extensions = manifest_data.setdefault('package', {}).setdefault('extensions', [])
-    for ext_name in sorted(map(itemgetter(0), save_deps)):
-      if ext_name not in extensions:
-        extensions.append(ext_name)
+  if save_ext and npy_packages:
+    extensions = manifest_data.setdefault('extensions', [])
+    for req_name in sorted(req_names.values()):
+      if req_name not in extensions:
+        extensions.append(req_name)
 
-  if (save or save_dev) and (npy_packages or python_deps):
+  if (save or save_dev or save_ext) and (npy_packages or python_deps):
     with open(manifest_filename, 'w') as fp:
       json.dump(manifest_data, fp, indent=2)
 

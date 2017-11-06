@@ -160,3 +160,22 @@ def get_module_dist_info(module, pythonpath=None):
     return data
 
   return None
+
+
+def cfgvars(dev):
+  """
+  Determines the variables available to the `cfg(...)` feature in the
+  manifest file. Note that the `dev` flag is not intended to be used
+  transitively, thus it is not automatically determined but must instead
+  be explicitly specified, and usually it is only specified for the
+  main package that is being installed.
+  """
+
+  vars = {}
+  if dev: vars['dev'] = True
+  else: vars['prod'] = True
+  if os.name == 'nt': vars['win32'] = True
+  elif sys.platform.startswith('darwin'): vars['darwin'] = True
+  elif sys.platform.startswith('linux'): vars['linux'] = True
+  else: vars['unknown'] = True
+  return vars

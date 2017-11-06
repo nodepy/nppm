@@ -212,3 +212,14 @@ Currently available variables are:
 * `win32`
 * `darwin`
 * `linux`
+
+This is the formal grammar of the filter string:
+
+    <expr> ::= <test> || <and> || <or> || <group>
+    <and> ::= <expr> 'and' <expr>
+    <or> ::= <expr> 'or' <expr>
+    <group> ::= '(' <expr> ')'
+    <test> ::= <var> <op> <value> || <var>
+    <var> ::= {A-Za-z0-9}+
+    <op> := '==' || '!=' || '<' || '<=' || '>' || '>='
+    <value> ::= {^&|<>=()}+

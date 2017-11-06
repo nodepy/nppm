@@ -279,17 +279,14 @@ class Installer:
     Installs the Node.py and Python dependencies of a #PackageManifest.
     """
 
-    # TODO: Evaluate cfg(...) stuff
-    deps = manifest.get('dependencies', {})
-    # TODO: Resolve development dependencies
+    deps = manifest.eval_fields(env.cfgvars(dev), 'dependencies', {})
     if deps:
       print('Installing dependencies for "{}"{}...'.format(manifest.identifier,
           ' (dev) ' if dev else ''))
       if not self.install_dependencies(deps, manifest.directory):
         return False
 
-    deps = manifest.get('pip_dependencies', {})
-    # TODO: Resolve development dependencies
+    deps = manifest.eval_fields(env.cfgvars(dev), 'pip_dependencies', {})
     if deps:
       print('Installing Python dependencies for "{}"{}...'.format(
           manifest.identifier, ' (dev) ' if dev else ''))
@@ -304,48 +301,48 @@ class Installer:
     """
 
     install_deps = []
-    for dep in deps:
-      name = dep.name
+    for name, req in deps.items():
+      if not isinstance(req, manifest.Requirement):
+        req = manifest.Requirement.from_line(req)
       try:
         have_package = self.find_package(name)
       except PackageNotFound as exc:
-        install_deps.append((name, dep))
+        install_deps.append((name, req))
       else:
-        if dep.type == 'registry':
-          if not dep.version(have_package.version):
+        if req.type == 'registry':
+          if not req.selector(have_package.version):
             print('  Warning: Dependency "{}@{}" unsatisfied, have "{}" installed'
-                .format(name, dep.version, have_package.identifier))
+                .format(name, req.selector, have_package.identifier))
           else:
             print('  Skipping satisfied dependency "{}@{}", have "{}" installed'
-                .format(name, dep.version, have_package.identifier))
+                .format(name, req.selector, have_package.identifier))
         else:
           # Must be a Git URL or a relative path.
           print('  Skipping "{}" dependency, have "{}" installed'
-            .format(name, dep.type, have_package.identifier))
+            .format(name, req.type, have_package.identifier))
         if self.recursive:
           self.install_dependencies_for(have_package)
 
     if not install_deps:
       return True
 
-    for name, dep in install_deps:
-      print('  Installing "{}" ({})'.format(name, dep))
-      if dep.type == 'registry':
-        # TODO: Pass `private` and `registry` to install_from_registry()
-        if not self.install_from_registry(name, dep.version, private=dep.private, regs=dep.registry)[0]:
+    for name, req in install_deps:
+      print('  Installing "{}" ({})'.format(name, req))
+      if req.type == 'registry':
+        if not self.install_from_registry(name, req.selector, private=req.internal, regs=req.registry)[0]:
           return False
-      elif dep.type == 'git':
-        if not self.install_from_git(dep.url, dep.ref, dep.recursive, dep.private)[0]:
+      elif req.type == 'git':
+        if not self.install_from_git(req.git_url, req.recursive, req.internal)[0]:
           return False
-      elif dep.type == 'path':
-        path = dep.path
+      elif req.type == 'path':
+        path = req.path
         if not os.path.isabs(path):
           path = os.path.join(current_dir, path)
         # TODO: Pass `private` to install_from_directory()
-        if not self.install_from_directory(path, dep.link)[0]:
+        if not self.install_from_directory(path, req.link)[0]:
           return False
       else:
-        raise RuntimeError('unexpected dependency data: "{}" -> {!r}'.format(name, dep))
+        raise RuntimeError('unexpected dependency data: "{}" -> {!r}'.format(name, req))
 
     return True
 
@@ -439,6 +436,7 @@ class Installer:
 
     if isinstance(req, six.string_types):
       req = manifest.Requirement.from_line(req)
+    req.inherit_values()
 
     registry = None
     if req.registry:
@@ -448,8 +446,7 @@ class Installer:
       return self.install_from_registry(req.name, req.selector, dev=dev,
         registry=registry, private=req.internal)
     if req.git_url:
-      url, ref = req.git_url.partition('@')[::2]
-      return self.install_from_git(url, ref, req.recursive, req.internal)
+      return self.install_from_git(req.git_url, req.recursive, req.internal)
     if req.path:
       if os.path.isfile(req.path):
         if req.link:
@@ -663,7 +660,7 @@ class Installer:
 
     return success, (package_name, info.version)
 
-  def install_from_git(self, url, ref=None, recursive=True, private=False):
+  def install_from_git(self, url, recursive=True, private=False):
     """
     Install a package from a Git repository. The package will first be cloned
     into a temporary directory, that be copied into the correct location and
@@ -674,6 +671,11 @@ class Installer:
     """
 
     # TODO: Handle `private` argument
+
+    if '@' in url:
+      url, ref = url.partition('@')[::2]
+    else:
+      ref = None
 
     dest = os.path.join(self.dirs['packages'], '.tmp')
     args = ['git', 'clone', url, dest]

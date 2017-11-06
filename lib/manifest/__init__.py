@@ -7,9 +7,11 @@ from nodepy.utils import as_text, json
 import collections
 import os
 import pip.req
+import pyparsing
 import six
-import semver from './semver'
-import refstring from './refstring'
+import cfgparser from './cfgparser'
+import semver from '../semver'
+import refstring from '../refstring'
 
 # A list of strings that are accepted in the manifest's "categories" field.
 categories = [
@@ -124,6 +126,93 @@ def iter_fields(manifest, name=None):
     yield (None, key, value)
 
 
+def eval_fields(manifest, vars, name=None, default=NotImplemented):
+  """
+  Evaluates all fields in *manifest*, resolving all `cfg(...)` sections. If
+  *name* is specified, only fields with that name are evaluated and only that
+  value is returned. *default* must be specified if no #KeyError is to be
+  raised when the key does not exist in the manifest without the `cfg(...)`
+  part.
+
+  Raises a #ValueError if the innate value of a field is a dictionary but
+  an override value that matches via `cfg(...)` is not.
+
+  Dictionaries will be merged. Lists will be concatenated if the first
+  element in the list is the string `'<super>'`.
+
+  The returned manifest may contain new warnings. Warnings from the old
+  manifest will not be inherited.
+  """
+
+  warnings = []
+
+  def eval_cfg(cfg, name, has_value, new_value):
+    assert cfg is None or cfg.startswith('cfg(')
+
+    if has_value is NotImplemented or cfg is None:
+      if isinstance(new_value, dict):
+        return new_value.copy()
+      elif isinstance(new_value, list):
+        return new_value[:]
+      else:
+        return new_value
+
+    match, errors = test_cfg(cfg, vars)
+    for error in errors:
+      warnings.append(Manifest.Warning(cfg, name, error))
+
+    if match:
+      if isinstance(has_value, dict):
+        if not isinstance(new_value, dict):
+          raise ValueError('field ({!r}, {!r}) must be a dictionary since '
+            'base value is, got {} instead'.format(cfg, name, type(v).__name__))
+        has_value.update(new_value)
+        return has_value
+      elif isinstance(new_value, list) and new_value and new_value[0] == '<super>':
+        if not isinstance(has_value, list):
+          raise ValueError('field ({!r}, {!r}) is a list but can not '
+            'inherit from {}'.format(cfg, name, type(has_value).__name__))
+        return has_value + new_value
+      return new_value
+
+    return has_value
+
+  if name is not None:
+    has_value = default
+    for cfg, new_value in iter_fields(manifest, name):
+      has_value = eval_cfg(cfg, name, has_value, new_value)
+    return has_value
+
+  result = Manifest(getattr(manifest, 'directory', None))
+  for cfg, name, value in iter_fields(manifest):
+    has_value = result.get(name, NotImplemented)
+    result[name] = eval_cfg(cfg, name, has_value, value)
+
+  result.warnings = warnings
+  return result
+
+
+def test_cfg(s, vars):
+  """
+  Tests a configuration filter string and returns #True if it matches with
+  the dictionary *vars*, #False otherwise. For a specification of the strings
+  format, check out the manifest documentation.
+
+  Returns a tuple of (match, errors).
+  """
+
+  os = s
+  if s.startswith('cfg('):
+    if s.endswith('.'): s = s[:-1]
+    if not s.endswith(')'):
+      raise ValueError('invalid cfg-filter string: {!r}'.format(os))
+    s = s[4:-1]
+
+  ctx = cfgparser.Context(vars)
+  ast = cfgparser.parse(s)
+  return ast.eval(ctx), ctx.errors
+
+
 def load(file, sorted=True, directory=None):
   """
   Loads a JSON manifest from the specified *file*. The file may be a filename
@@ -165,11 +254,14 @@ def validate(payload):
   return fields
 
 
-class Manifest(dict):
+class Manifest(collections.OrderedDict):
+
+  Warning = collections.namedtuple('Warning', 'cfg name message')
 
   def __init__(self, directory, *args, **kwargs):
     super(Manifest, self).__init__(*args, **kwargs)
     self.directory = directory
+    self.warnings = []
 
   @property
   def identifier(self):
@@ -177,6 +269,9 @@ class Manifest(dict):
 
   def iter_fields(self, name=None):
     return iter_fields(self, name)
+
+  def eval_fields(self, vars, name=None, default=NotImplemented):
+    return eval_fields(self, vars, name, default)
 
 
 class PipRequirement(pip.req.InstallRequirement):
@@ -231,6 +326,28 @@ class Requirement(object):
       name += 'git+' + self.git_url
     parts.append(name)
     return ' '.join(parts)
+
+  @property
+  def type(self):
+    if self.path:
+      return 'path'
+    elif self.git_url:
+      return 'git'
+    elif self.name:
+      return 'registry'
+    else:
+      raise RuntimeError('this requirement is empty')
+
+  def inherit_values(self, pure=False, internal=False, link=False,
+                     optional=False, recursive=True, registry=None):
+    """
+    Update the flags and options of the requirement with default values.
+    Only fields with #None values are updated.
+    """
+
+    for key in self.FLAGS + self.OPTIONS:
+      if getattr(self, key) is None:
+        setattr(self, key, locals()[key])
 
   @classmethod
   def from_line(cls, line, *args, **kwargs):
