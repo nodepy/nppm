@@ -201,7 +201,7 @@ class Installer:
       print("  at '{}'".format(dirname))
       raise PackageNotFound(package)
     else:
-      return self._load_manifest(manifest_fn, directory=directry)
+      return self._load_manifest(manifest_fn, directory=dirname)
 
   def uninstall(self, package_name):
     """
@@ -319,7 +319,7 @@ class Installer:
         else:
           # Must be a Git URL or a relative path.
           print('  Skipping "{}" dependency, have "{}" installed'
-            .format(name, req.type, have_package.identifier))
+            .format(req.type, name, have_package.identifier))
         if self.recursive:
           self.install_dependencies_for(have_package)
 
