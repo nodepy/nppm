@@ -20,7 +20,6 @@
   ],
   "include": [
     "lib/**",
-    "scripts/**",
     "index.py",
     "LICENSE.txt",
     "README.md"

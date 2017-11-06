@@ -72,8 +72,8 @@ def _match_any_pattern(filename, patterns, gitignore_style=False):
 
 
 def _check_include_file(filename, include, exclude):
-  if include is not None and _match_any_pattern(filename, include):
-    return True
+  if include is not None:
+    return _match_any_pattern(filename, include)
   return not _match_any_pattern(filename, exclude)
 
 
