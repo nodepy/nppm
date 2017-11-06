@@ -45,8 +45,6 @@ class ScriptMaker:
     self.pythonpath = []
 
   def _init_code(self):
-    if not self.path and not self.pythonpath:
-      return ''
     code = '# Initialize environment variables (from ScriptMaker).\n'\
            'import os,sys,nodepy.runtime\n'
     if self.path:
@@ -55,10 +53,10 @@ class ScriptMaker:
               'os.pathsep + os.environ.get("PATH", "")\n'.format(path=path)
     if self.pythonpath:
       path = [os.path.abspath(x) for x in self.pythonpath]
-      # Remember: We don't set PYTHONPATH due to nodepy/nodepy#62
-      code += 'nodepy.runtime.script = {{"location": {location!r}, "original_path": sys.path[:]}}\n'\
-              'sys.path.extend({pythonpath!r})\n'\
-              .format(pythonpath=path, location=self.location)
+    # Remember: We don't set PYTHONPATH due to nodepy/nodepy#62
+    code += 'nodepy.runtime.script = {{"location": {location!r}, "original_path": sys.path[:]}}\n'\
+            'sys.path.extend({pythonpath!r})\n'\
+            .format(pythonpath=self.pythonpath, location=self.location)
     return code + '\n'
 
   def make_python(self, script_name, code):
