@@ -180,7 +180,7 @@ class PackageLifecycle(object):
 
     request = self.manifest.get('scripts', {})[script].strip()
     if request.startswith('$'):
-      return self._run_command(request[1:])
+      return self._run_command(request[1:].strip())
     else:
       args = shlex.split(request) + args
       return nodepy.main(['--current-dir', self.manifest.directory] + args)

@@ -403,6 +403,7 @@ class Requirement(object):
 
   @staticmethod
   def _is_path(s):
-    return (s.startswith('./') or s.startswith('.\\') or
+    return (s == '.' or s == '..' or
+            s.startswith('./') or s.startswith('.\\') or
             s.startswith('../') or s.startswith('..\\') or
             os.path.isabs(s))
