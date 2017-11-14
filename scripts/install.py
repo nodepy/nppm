@@ -35,6 +35,7 @@ parser.add_argument('-e', '--develop', action='store_true',
        'global package directory rather than copying it. Use this only if '
        'you want to update PM via Git or are developing it.')
 parser.add_argument('-f', '--force', action='store_true')
+parser.add_argument('--no-bootstrap', action='store_true')
 
 
 def read_proc(proc, encoding=None, prefix=''):
@@ -43,15 +44,7 @@ def read_proc(proc, encoding=None, prefix=''):
     print(prefix + line.rstrip('\n'))
 
 
-def main():
-  args = parser.parse_args()
-  if args.local and args.g:
-    print('fatal: -l, --local and -g, --global can not be mixed')
-    return 1
-
-  location = 'local' if args.local else ('global' if args.g else 'root')
-  dirs = get_directories(location)
-
+def bootstrap_pip_deps():
   print("installing nodepy-pm Pip dependencies...")
   cmd = ['--prefix', dirs['pip_prefix'], '--ignore-installed']
   for key, value in module.package.payload['pip_dependencies'].items():
@@ -69,6 +62,19 @@ def main():
   if res != 0:
     print('fatal: pip exited with return code {}'.format(res))
     sys.exit(res)
+
+
+def main():
+  args = parser.parse_args()
+  if args.local and args.g:
+    print('fatal: -l, --local and -g, --global can not be mixed')
+    return 1
+
+  location = 'local' if args.local else ('global' if args.g else 'root')
+  dirs = get_directories(location)
+
+  if not args.no_bootstrap:
+    bootstrap_pip_deps()
 
   # If we're not installing into the root location, the Pip installed
   # libraries will not be automatically found by the Node.py runtime, yet

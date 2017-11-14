@@ -46,6 +46,7 @@ parser.add_argument('-g', '--global', dest='g', action='store_true',
 parser.add_argument('-U', '--upgrade', action='store_true',
   help='Overwrite the existing installation of Node.py PM.')
 parser.add_argument('-f', '--force', action='store_true')
+parser.add_argument('--no-bootstrap', action='store_true')
 
 
 @contextlib.contextmanager
@@ -126,6 +127,7 @@ def main():
     cmd += ['--global'] if args.g else []
     cmd += ['--force'] if args.force else []
     cmd += ['--upgrade'] if args.upgrade else []
+    cmd += ['--no-bootstrap'] if args.no_bootstrap else []
     print('$', ' '.join(map(quote, cmd)))
     return subprocess.call(cmd)
 
