@@ -44,7 +44,7 @@ def read_proc(proc, encoding=None, prefix=''):
     print(prefix + line.rstrip('\n'))
 
 
-def bootstrap_pip_deps():
+def bootstrap_pip_deps(dirs):
   print("installing nodepy-pm Pip dependencies...")
   cmd = ['--prefix', dirs['pip_prefix'], '--ignore-installed']
   for key, value in module.package.payload['pip_dependencies'].items():
@@ -74,7 +74,7 @@ def main():
   dirs = get_directories(location)
 
   if not args.no_bootstrap:
-    bootstrap_pip_deps()
+    bootstrap_pip_deps(dirs)
 
   # If we're not installing into the root location, the Pip installed
   # libraries will not be automatically found by the Node.py runtime, yet
