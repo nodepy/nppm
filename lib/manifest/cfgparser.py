@@ -4,7 +4,7 @@ Parser and evaluator for configuration filter strings.
 
 import io
 import string
-import strex from '../vendor/strex'
+import nr.parse.strex as strex
 
 
 class _AstNode(object):
