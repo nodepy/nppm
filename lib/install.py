@@ -604,6 +604,7 @@ class Installer:
         # Create a link file that contains the path to the actual package directory.
         print('  Creating "{}"...'.format(os.path.basename(target_dir) + env.LINK_SUFFIX))
         linkfn = os.path.join(target_dir + env.LINK_SUFFIX)
+        _makedirs(os.path.dirname(linkfn))
         with open(linkfn, 'w') as fp:
           fp.write(os.path.abspath(directory))
         installed_files.append(linkfn)
