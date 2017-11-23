@@ -85,6 +85,12 @@ class InvalidPackageManifest(Exception):
   pass
 
 
+class InvalidPackage(object):
+  def __init__(self, name, directory):
+    self.name = name
+    self.directory = directory
+
+
 def walk_package_files(manifest):
   """
   Walks over the files included in a package and yields (abspath, relpath).
@@ -203,7 +209,7 @@ class Installer:
     if not os.path.isfile(manifest_fn):
       print('Warning: found package directory without {}'.format(PACKAGE_MANIFEST))
       print("  at '{}'".format(dirname))
-      raise PackageNotFound(package)
+      return InvalidPackage(package, dirname)
     else:
       return self._load_manifest(manifest_fn, directory=dirname)
 
@@ -310,6 +316,8 @@ class Installer:
         req = manifest.Requirement.from_line(req)
       try:
         have_package = self.find_package(name, req.internal)
+        if isinstance(have_package, InvalidPackage):
+          raise PackageNotFound
       except PackageNotFound as exc:
         install_deps.append((name, req))
       else:
@@ -622,6 +630,8 @@ class Installer:
     # Check if the package already exists.
     try:
       package = self.find_package(package_name, internal)
+      if isinstance(package, InvalidPackage):
+        raise PackageNotFound
     except PackageNotFound:
       pass
     else:
