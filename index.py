@@ -143,10 +143,10 @@ def version():
        'only to packages installed from a local directory.')
 @click.option('-g', '--global/--local', 'global_', is_flag=True,
   help='Install into the user\'s home directory (platform dependent). '
-       'Implies --private (use --no-private to prevent this behaviour).')
+       'Implies --internal (use --no-internal to prevent this behaviour).')
 @click.option('--root', is_flag=True,
   help='Install into the Python\'s root directory (platform dependent). '
-       'Implies --private (use --no-private to prevent this behaviour).')
+       'Implies --internal (use --no-internal to prevent this behaviour).')
 @click.option('-I', '--ignore-installed', is_flag=True,
   help='Passed to Pip when installing Python dependencies. Ignores '
        'packages that are already installed in other directories.')
@@ -202,6 +202,10 @@ def install(packages, upgrade, develop, global_, root, ignore_installed,
     else:
       # Implying --save
       save = True
+
+  if (global_ or root) and internal is None:
+    print('Note: implying --internal due to {}.'.format('--global' if global_ else '--root'))
+    internal = True
 
   if save and save_dev:
     print('Error: decide for either --save or --save-dev')
