@@ -61,6 +61,30 @@ class ScriptMaker:
     # Remember: We don't set PYTHONPATH due to nodepy/nodepy#62
     return code
 
+  def _get_maker(self):
+    return _ScriptMaker(None, self.directory)
+
+  def get_files_for_script_name(self, script_name):
+    """
+    Returns the filenames that would be created by one of the `make_...()`
+    functions.
+    """
+
+    maker = self._get_maker()
+
+    # Reproduces _ScriptMaker._write_script() a little bit.
+    use_launcher = maker.add_launchers and maker._is_nt
+    outname = os.path.join(maker.target_dir, script_name)
+    if use_launcher:
+      n, e = os.path.splitexst(script_name)
+      if e.startswith('.py'):
+        outname = n
+      outname = '{}.exe'.format(outname)
+    else:
+      if maker._is_nt and not outname.endswith('.py'):
+        outname += '.py'
+    return [outname]
+
   def make_python(self, script_name, code):
     """
     Uses #distlib.scripts.ScriptMaker to create a Python script that is invoked
@@ -84,7 +108,7 @@ class ScriptMaker:
       # the extension doesn't get lost.
       script_name += '.py'
 
-    maker = _ScriptMaker(None, self.directory)
+    maker = self._get_maker()
     maker.clobber = True
     maker.variants = set(('',))
     maker.set_mode = True

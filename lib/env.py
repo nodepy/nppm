@@ -29,7 +29,6 @@ MODULES_DIRECTORY = module.context.modules_directory
 PIP_DIRECTORY = module.context.pipprefix_directory
 PROGRAM_DIRECTORY = os.path.join(os.path.dirname(PIP_DIRECTORY), 'bin')
 LINK_SUFFIX = module.context.link_suffix
-INSTALLED_FILES = '.nodepy-installed-files.txt'
 
 
 def is_virtualenv():
@@ -75,14 +74,15 @@ def get_directories(location, auto_upgrade=True):
 
   user = (location == 'global')
   scheme = pip.locations.distutils_scheme('', user=user)
-  prefix = os.path.dirname(scheme['purelib'])
 
   return {
-    'packages': os.path.join(prefix, MODULES_DIRECTORY),
+    # Install Node.py modules near the site-packages.
+    'packages': os.path.join(os.path.dirname(scheme['purelib']), 'nodepy-modules'),
     'bin': scheme['scripts'],
-    'pip_prefix': os.path.join(prefix, local['data']),
+    'pip_prefix': scheme['data'],
+    # Re-use Pip's script and site-packages directory.
     'pip_bin': scheme['scripts'],
-    'pip_lib': os.path.join(prefix, local['purelib'])
+    'pip_lib': scheme['purelib']
   }
 
 

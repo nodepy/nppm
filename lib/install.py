@@ -196,10 +196,11 @@ class Installer:
       dirname = os.path.join(self.currently_installing[-1][1], package)
     else:
       dirname = os.path.join(self.dirs['packages'], package)
-    if not os.path.isdir(dirname):
-      raise PackageNotFound(package)
 
     lnk = nodepy.resolver.StdResolver.resolve_link(require.context, pathlib.Path(dirname))
+    if not lnk and not os.path.isdir(dirname):
+      raise PackageNotFound(package)
+
     if lnk:
       manifest_fn = os.path.join(lnk, PACKAGE_MANIFEST)
     else:
@@ -250,8 +251,9 @@ class Installer:
       print('Can not uninstall: directory "{}": Invalid manifest": {}'.format(directory, exc))
       return False
 
-    print('Uninstalling "{}" from "{}"{}...'.format(mf.identifier,
-        directory, ' before upgrade' if self.upgrade else ''))
+    print('Uninstalling "{}"'.format(mf.identifier))
+    print('  package directory "{}"'.format(os.path.dirname(directory)))
+    print('  scripts directory "{}"'.format(self.script.directory))
 
     plc = PackageLifecycle(manifest=mf)
     try:
@@ -261,22 +263,36 @@ class Installer:
       print('Error: pre-uninstall script failed.')
       return False
 
-    filelist_fn = os.path.join(directory, env.INSTALLED_FILES)
-    installed_files = []
-    if not os.path.isfile(filelist_fn):
-      print('  Warning: No `{}` found in package directory'.format(env.INSTALLED_FILES))
-    else:
-      with open(filelist_fn, 'r') as fp:
-        for line in fp:
-          installed_files.append(line.rstrip('\n'))
 
-    for fn in installed_files:
+    for script_name in mf.get('bin', {}).keys():
+      for script_name in self.expand_script_name(script_name):
+        for filename in self.script.get_files_for_script_name(script_name):
+          print('  * Removing script {} ... '.format(os.path.basename(filename)), end='')
+          try:
+            os.remove(filename)
+          except OSError as e:
+            print('ERROR ({})'.format(e))
+          else:
+            print('OK')
+
+    if os.path.isdir(directory):
+      print('  * Removing package directory {} ... '.format(os.path.basename(directory)), end='')
       try:
-        os.remove(fn)
-        print('  Removed "{}"...'.format(fn))
-      except OSError as exc:
-        print('  "{}":'.format(fn), exc)
-    _rmtree(directory)
+        _rmtree(directory)
+      except OSError as e:
+        print('ERROR ({})'.format(e))
+      else:
+        print('OK')
+    link_file = directory + env.LINK_SUFFIX
+    if os.path.isfile(link_file):
+      print('  * Removing {} ... '.format(os.path.basename(link_file)), end='')
+      try:
+        os.remove(link_file)
+      except OSError as e:
+        print('ERROR ({})'.format(e))
+      else:
+        print('OK')
+
     return True
 
   def install_dependencies_for(self, manifest, dev=False):
@@ -465,6 +481,16 @@ class Installer:
       info = (mnf['name'], mnf['version']) if success else None
       return success, info
 
+  def expand_script_name(self, script_name):
+    if '${py}' in script_name:
+      return [
+        script_name.replace('${py}', ''),
+        script_name.replace('${py}', sys.version[0]),
+        script_name.replace('${py}', sys.version[:3])
+      ]
+    else:
+      return [script_name]
+
   @decorators.finally_()
   def install_from_directory(self, directory, develop=False, dev=False,
       expect=None, movedir=False, internal=False):
@@ -552,7 +578,6 @@ class Installer:
       installed_files.append(target_dir)
     else:
       print('Installing "{}" to "{}" ...'.format(manifest.identifier, target_dir))
-      _makedirs(target_dir)
       if develop:
         # Create a link file that contains the path to the actual package directory.
         print('  Creating "{}"...'.format(os.path.basename(target_dir) + env.LINK_SUFFIX))
@@ -561,6 +586,7 @@ class Installer:
           fp.write(os.path.abspath(directory))
         installed_files.append(linkfn)
       else:
+        _makedirs(target_dir)
         for src, rel in walk_package_files(manifest):
           dst = os.path.join(target_dir, rel)
           _makedirs(os.path.dirname(dst))
@@ -570,15 +596,7 @@ class Installer:
 
     # Create scripts for the 'bin' field in the package manifest.
     for script_name, filename in manifest.get('bin', {}).items():
-      if '${py}' in script_name:
-        script_names = [
-            script_name.replace('${py}', ''),
-            script_name.replace('${py}', sys.version[0]),
-            script_name.replace('${py}', sys.version[:3])
-        ]
-      else:
-        script_names = [script_name]
-
+      script_names = self.expand_script_name(script_name)
       for script_name in script_names:
         print('  Installing script "{}" to "{}"...'.format(script_name, self.script.directory))
         filename = os.path.abspath(os.path.join(target_dir, filename))
@@ -586,10 +604,10 @@ class Installer:
             script_name, filename)
 
     # Write down the names of the installed files.
-    with open(os.path.join(target_dir, env.INSTALLED_FILES), 'w') as fp:
-      for fn in installed_files:
-        fp.write(fn)
-        fp.write('\n')
+    #with open(os.path.join(target_dir, env.INSTALLED_FILES), 'w') as fp:
+    #  for fn in installed_files:
+    #    fp.write(fn)
+    #    fp.write('\n')
 
     try:
       plc.run('post-install', [], script_only=True)
