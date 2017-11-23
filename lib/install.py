@@ -144,6 +144,8 @@ class Installer:
     self.installed_python_libs = {}
     self.currently_installing = []  # stack of currently installing packages
     self.install_base = []  # stack of last module that was installed internally
+    self.pure_stack = [False]  # stack of indicators that represent if a pure
+                               # installation is performed (pure => dont install scripts)
 
   @contextlib.contextmanager
   def pythonpath_update_context(self):
@@ -474,17 +476,17 @@ class Installer:
 
     if req.selector:
       return self.install_from_registry(req.name, req.selector, dev=dev,
-        registry=registry, internal=req.internal)
+        registry=registry, internal=req.internal, pure=req.pure)
     if req.git_url:
-      return self.install_from_git(req.git_url, req.recursive, internal=req.internal)
+      return self.install_from_git(req.git_url, req.recursive, internal=req.internal, pure=req.pure)
     if req.path:
       if os.path.isfile(req.path):
         if req.link:
           print('Warning: Can not install in develop mode from archive "{}"'
             .format(req.path))
-        success, mnf = self.install_from_archive(req.path, dev=dev, internal=req.internal)
+        success, mnf = self.install_from_archive(req.path, dev=dev, internal=req.internal, pure=req.pure)
       else:
-        success, mnf = self.install_from_directory(req.path, req.link, dev=dev, internal=req.internal)
+        success, mnf = self.install_from_directory(req.path, req.link, dev=dev, internal=req.internal, pure=req.pure)
       info = (mnf['name'], mnf['version']) if success else None
       return success, info
 
@@ -500,7 +502,7 @@ class Installer:
 
   @decorators.finally_()
   def install_from_directory(self, directory, develop=False, dev=False,
-      expect=None, movedir=False, internal=False):
+      expect=None, movedir=False, internal=False, pure=None):
     """
     Installs a package from a directory. The directory must have a
     `nodepy.json` file. If *expect* is specified, it must be a tuple of
@@ -542,6 +544,12 @@ class Installer:
       print('Error: Expected to install "{}@{}" but got "{}" in "{}"'
           .format(expect[0], expect[1], manifest.identifier, directory))
       return False, manifest
+
+    if pure is None:
+      pure = self.pure_stack[-1]
+    else:
+      self.pure_stack.append(pure)
+      decorators.finally_(lambda: self.pure_stack.pop())
 
     # Determine our final install directory.
     if self.install_base:
@@ -608,14 +616,15 @@ class Installer:
           shutil.copyfile(src, dst)
           installed_files.append(dst)
 
-    # Create scripts for the 'bin' field in the package manifest.
-    for script_name, filename in manifest.get('bin', {}).items():
-      script_names = self.expand_script_name(script_name)
-      for script_name in script_names:
-        print('  Installing script "{}" to "{}"...'.format(script_name, self.script.directory))
-        filename = os.path.abspath(os.path.join(target_dir, filename))
-        installed_files += self.script.make_nodepy(
-            script_name, filename)
+    if not pure:
+      # Create scripts for the 'bin' field in the package manifest.
+      for script_name, filename in manifest.get('bin', {}).items():
+        script_names = self.expand_script_name(script_name)
+        for script_name in script_names:
+          print('  Installing script "{}" to "{}"...'.format(script_name, self.script.directory))
+          filename = os.path.abspath(os.path.join(target_dir, filename))
+          installed_files += self.script.make_nodepy(
+              script_name, filename)
 
     # Write down the names of the installed files.
     #with open(os.path.join(target_dir, env.INSTALLED_FILES), 'w') as fp:
@@ -632,7 +641,7 @@ class Installer:
 
     return True, manifest
 
-  def install_from_archive(self, archive, dev=False, expect=None):
+  def install_from_archive(self, archive, dev=False, expect=None, pure=None):
     """
     Install a package from an archive.
     """
@@ -642,11 +651,12 @@ class Installer:
     try:
       with tarfile.open(archive) as tar:
         tar.extractall(directory)
-      return self.install_from_directory(directory, dev=dev, expect=expect)
+      return self.install_from_directory(directory, dev=dev, expect=expect, pure=pure)
     finally:
       _rmtree(directory)
 
-  def install_from_registry(self, package_name, selector, dev=False, regs=None, internal=False):
+  def install_from_registry(self, package_name, selector, dev=False, regs=None,
+                            internal=False, pure=None):
     """
     Install a package from a registry.
 
@@ -702,14 +712,15 @@ class Installer:
       with tempfile.NamedTemporaryFile(suffix='_' + filename, delete=False) as tmp:
         progress = _download.DownloadProgress(30, prefix='  ')
         _download.download_to_fileobj(response, tmp, progress=progress)
-      success = self.install_from_archive(tmp.name, dev=dev, expect=(package_name, info.version), internal=internal)
+      success = self.install_from_archive(tmp.name, dev=dev, pure=pure,
+        expect=(package_name, info.version), internal=internal)
     finally:
       if tmp and os.path.isfile(tmp.name):
         os.remove(tmp.name)
 
     return success, (package_name, info.version)
 
-  def install_from_git(self, url, recursive=True, internal=False):
+  def install_from_git(self, url, recursive=True, internal=False, pure=False):
     """
     Install a package from a Git repository. The package will first be cloned
     into a temporary directory, that be copied into the correct location and
@@ -739,7 +750,8 @@ class Installer:
       return False, None
 
     with later(_rmtree, dest):
-      success, manifest = self.install_from_directory(dest, movedir=True, internal=internal)
+      success, manifest = self.install_from_directory(dest, movedir=True,
+        internal=internal, pure=pure)
 
     if manifest:
       return success, (manifest['name'], manifest['version'])

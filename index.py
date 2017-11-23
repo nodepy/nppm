@@ -183,10 +183,13 @@ def version():
        'dependencies (resulting in a non-flat dependency tree by default). '
        'Applies only to the dependencies specified on the command-line and '
        'not recursively.')
+@click.option('--pure', is_flag=True, default=False,
+  help='Install the packages pure, do not install their scripts.')
 @exit_with_return
 def install(packages, upgrade, develop, global_, root, ignore_installed,
             packagedir, recursive, pip_separate_process, pip_use_target_option,
-            info, dev, save, save_dev, save_ext, verbose, registry, internal):
+            info, dev, save, save_dev, save_ext, verbose, registry, internal,
+            pure):
   """
   Installs one or more Node.Py or Pip packages.
   """
@@ -254,7 +257,7 @@ def install(packages, upgrade, develop, global_, root, ignore_installed,
       pip_packages.append(manifest.PipRequirement.from_line(pkg[1:]))
     else:
       req = manifest.Requirement.from_line(pkg, expect_name=True)
-      req.inherit_values(link=develop, registry=registry, internal=internal)
+      req.inherit_values(link=develop, registry=registry, internal=internal, pure=pure)
       npy_packages.append(req)
 
   # Install Python dependencies.
