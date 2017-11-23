@@ -45,19 +45,21 @@ class ScriptMaker:
     self.pythonpath = []
 
   def _init_code(self):
-    code = '# Initialize environment variables (from ScriptMaker).\n'\
-           'import os,sys,nodepy.runtime\n'
+    code = (
+      '# Initialize environment variables (from ScriptMaker).\n'\
+      'import os, sys\n'
+    )
     if self.path:
       path = [os.path.abspath(x) for x in self.path]
-      code += 'os.environ["PATH"] = os.pathsep.join({path!r}) + '\
-              'os.pathsep + os.environ.get("PATH", "")\n'.format(path=path)
-    if self.pythonpath:
-      path = [os.path.abspath(x) for x in self.pythonpath]
+      code += (
+        'os.environ["PATH"] = os.pathsep.join({path!r}) + os.pathsep + os.environ.get("PATH", "")\n'
+        .format(path=path)
+      )
+    code += 'sys.path.extend({pythonpath!r})\n'.format(
+      pythonpath=[os.path.abspath(x) for x in self.pythonpath]
+    )
     # Remember: We don't set PYTHONPATH due to nodepy/nodepy#62
-    code += 'nodepy.runtime.script = {{"location": {location!r}, "original_path": sys.path[:]}}\n'\
-            'sys.path.extend({pythonpath!r})\n'\
-            .format(pythonpath=self.pythonpath, location=self.location)
-    return code + '\n'
+    return code
 
   def make_python(self, script_name, code):
     """
@@ -109,9 +111,13 @@ class ScriptMaker:
     args = ['--keep-arg0']
     args.append(filename)
 
-    code = 'import sys, nodepy.main;\n'\
-           'sys.argv = [sys.argv[0]] + {args!r} + sys.argv[1:]\n'\
-           'sys.exit(nodepy.main.main())\n'.format(args=args)
+    code = (
+      'import sys, nodepy.main, nodepy.runtime\n'
+      'nodepy.runtime.script = {{"location": {location!r}, "original_path": sys.path[:]}}\n'
+      'sys.argv = [sys.argv[0]] + {args!r} + sys.argv[1:]\n'
+      'sys.exit(nodepy.main.main())\n'
+      .format(args=args, location=self.location)
+    )
     return self.make_python(script_name, code)
 
   def make_wrapper(self, script_name, target_program):
