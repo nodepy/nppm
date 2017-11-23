@@ -178,10 +178,6 @@ def version():
   help='Specify explicitly which registry to look for Node.py packages '
        'with. If not specified, all registries will be checked unless they '
        'specify the `default=false` option.')
-@click.option('-f', '--force', is_flag=True,
-  help='Overwrite existing installed packages if it becomes necessary (eg. '
-       'when a package link is broken, the package can no longer be found but '
-       'its install directory still exists).')
 @click.option('--internal/--no-internal', default=None,
   help='Install the dependencies of specified packages as private '
        'dependencies (resulting in a non-flat dependency tree by default). '
@@ -190,8 +186,7 @@ def version():
 @exit_with_return
 def install(packages, upgrade, develop, global_, root, ignore_installed,
             packagedir, recursive, pip_separate_process, pip_use_target_option,
-            info, dev, save, save_dev, save_ext, verbose, registry, force,
-            internal):
+            info, dev, save, save_dev, save_ext, verbose, registry, internal):
   """
   Installs one or more Node.Py or Pip packages.
   """
@@ -232,7 +227,6 @@ def install(packages, upgrade, develop, global_, root, ignore_installed,
   installer = get_installer(global_, root, upgrade, pip_separate_process,
       pip_use_target_option, recursive, verbose, registry=None)
   installer.ignore_installed = ignore_installed
-  installer.force = force
 
   if info:
     for key in sorted(installer.dirs):
