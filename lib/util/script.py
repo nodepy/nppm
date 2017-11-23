@@ -156,4 +156,4 @@ class ScriptMaker:
         raise ValueError('target_program must be an absolute path')
       target_program = [target_program]
 
-    return self.make_command(script_name, [target_program])
+    return self.make_command(script_name, target_program)
