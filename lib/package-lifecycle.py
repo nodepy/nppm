@@ -141,8 +141,8 @@ class PackageLifecycle(object):
       print(msg)
 
   def publish(self, user, password, force, dry, registry):
-    if self.manifest['private']:
-      print('Error: the package is marked as private and can not be published.')
+    if not self.manifest.get('publish', True):
+      print('Error: publish field is False, the package can not be published.')
       exit(1)
     self.run('pre-publish', [], script_only=True)
     filename = self.dist()

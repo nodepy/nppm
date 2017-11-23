@@ -355,7 +355,7 @@ class Installer:
     for name, req in install_deps:
       print('  Installing "{}" ({})'.format(name, req))
       if req.type == 'registry':
-        if not self.install_from_registry(name, req.selector, private=req.internal, regs=req.registry)[0]:
+        if not self.install_from_registry(name, req.selector, internal=req.internal, regs=req.registry)[0]:
           return False
       elif req.type == 'git':
         if not self.install_from_git(req.git_url, req.recursive, req.internal)[0]:
@@ -730,8 +730,6 @@ class Installer:
     # Returns
     (success, (package_name, package_version))
     """
-
-    # TODO: Handle `private` argument
 
     if '@' in url:
       url, ref = url.partition('@')[::2]

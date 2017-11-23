@@ -179,7 +179,7 @@ def version():
        'with. If not specified, all registries will be checked unless they '
        'specify the `default=false` option.')
 @click.option('--internal/--no-internal', default=None,
-  help='Install the dependencies of specified packages as private '
+  help='Install the dependencies of specified packages as internal '
        'dependencies (resulting in a non-flat dependency tree by default). '
        'Applies only to the dependencies specified on the command-line and '
        'not recursively.')
