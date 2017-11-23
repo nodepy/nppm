@@ -24,11 +24,11 @@ import os
 import pip.locations
 import sys
 
-MODULES_DIRECTORY = module.context.modules_directory
 PACKAGE_MANIFEST = module.context.package_manifest
-PROGRAM_DIRECTORY = os.path.join(MODULES_DIRECTORY, '.bin')
-PIP_DIRECTORY = os.path.join(MODULES_DIRECTORY, '.pip')
-LINK_FILE = module.context.link_file
+MODULES_DIRECTORY = module.context.modules_directory
+PIP_DIRECTORY = module.context.pipprefix_directory
+PROGRAM_DIRECTORY = os.path.join(os.path.dirname(PIP_DIRECTORY), 'bin')
+LINK_SUFFIX = module.context.link_suffix
 INSTALLED_FILES = '.nodepy-installed-files.txt'
 
 

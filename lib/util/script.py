@@ -100,20 +100,13 @@ class ScriptMaker:
            'sys.exit(subprocess.call({!r} + sys.argv[1:]))\n'.format(args, pythonpath=self.pythonpath)
     return self.make_python(script_name, code)
 
-  def make_nodepy(self, script_name, filename, reference_dir=None):
+  def make_nodepy(self, script_name, filename):
     """
     Uses #make_pyton() to create a script that invokes the current Python and
-    Node.py runtime to run the Node.py module specified by *filename*. If a
-    *reference_dir* is specified, that directory will be used as a the base
-    directory to start searching for `nodepy_modules/` directories instead of
-    the current working directory.
+    Node.py runtime to run the Node.py module specified by *filename*.
     """
 
     args = ['--keep-arg0']
-    #if reference_dir:
-    #  # Find modules in the reference directory.
-    #  args.append('--current-dir')
-    #  args.append(reference_dir)
     args.append(filename)
 
     code = 'import sys, nodepy.main;\n'\

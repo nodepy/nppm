@@ -226,7 +226,7 @@ class Installer:
     on failure.
     """
 
-    link_fn = os.path.join(directory, env.LINK_FILE)
+    link_fn = os.path.join(directory + env.LINK_SUFFIX)
     if os.path.isfile(link_fn):
       with open(link_fn, 'r') as fp:
         manifest_fn = os.path.join(fp.read().rstrip('\n'), PACKAGE_MANIFEST)
@@ -552,8 +552,8 @@ class Installer:
       _makedirs(target_dir)
       if develop:
         # Create a link file that contains the path to the actual package directory.
-        print('  Creating {} to "{}"...'.format(env.LINK_FILE, directory))
-        linkfn = os.path.join(target_dir, env.LINK_FILE)
+        print('  Creating "{}"...'.format(os.path.basename(target_dir) + env.LINK_SUFFIX))
+        linkfn = os.path.join(target_dir + env.LINK_SUFFIX)
         with open(linkfn, 'w') as fp:
           fp.write(os.path.abspath(directory))
         installed_files.append(linkfn)
@@ -580,7 +580,7 @@ class Installer:
         print('  Installing script "{}" to "{}"...'.format(script_name, self.script.directory))
         filename = os.path.abspath(os.path.join(target_dir, filename))
         installed_files += self.script.make_nodepy(
-            script_name, filename, self.dirs['reference_dir'])
+            script_name, filename)
 
     # Write down the names of the installed files.
     with open(os.path.join(target_dir, env.INSTALLED_FILES), 'w') as fp:
