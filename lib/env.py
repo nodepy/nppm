@@ -86,6 +86,21 @@ def get_directories(location, auto_upgrade=True):
   }
 
 
+def pip_locations_for(directory):
+  """
+  Returns a dictionary that contains the `pip_prefix`, `pip_bin` and
+  `pip_lib` members as returned by #get_directories() but for a directory
+  that contains the pip data (i.e. `myproject/.nodepy`).
+  """
+
+  scheme = pip.locations.distutils_scheme('', prefix=PIP_DIRECTORY)
+  return {
+    'pip_prefix': os.path.join(directory, scheme['data']),
+    'pip_bin': os.path.join(directory, scheme['scripts']),
+    'pip_lib': os.path.join(directory, scheme['purelib'])
+  }
+
+
 def get_python_install_type():
   """
   Returns a string with information about this Python installation. Possible

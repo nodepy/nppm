@@ -143,6 +143,7 @@ class Installer:
       self.script.pythonpath.extend([self.dirs['pip_lib']])
     self.installed_python_libs = {}
     self.currently_installing = []  # stack of currently installing packages
+    self.install_base = []  # stack of last module that was installed internally
 
   @contextlib.contextmanager
   def pythonpath_update_context(self):
@@ -192,8 +193,8 @@ class Installer:
     """
 
     refstring.parse_package(package)
-    if internal and self.currently_installing:
-      dirname = os.path.join(self.currently_installing[-1][1], package)
+    if internal and self.install_base:
+      dirname = os.path.join(self.install_base[-1][1], package)
     else:
       dirname = os.path.join(self.dirs['packages'], package)
 
@@ -295,7 +296,7 @@ class Installer:
 
     return True
 
-  def install_dependencies_for(self, manifest, dev=False):
+  def install_dependencies_for(self, manifest, dev=False, internal=False):
     """
     Installs the Node.py and Python dependencies of a #PackageManifest.
     """
@@ -361,8 +362,7 @@ class Installer:
         path = req.path
         if not os.path.isabs(path):
           path = os.path.join(current_dir, path)
-        # TODO: Pass `private` to install_from_directory()
-        if not self.install_from_directory(path, req.link)[0]:
+        if not self.install_from_directory(path, req.link, internal=req.internal)[0]:
           return False
       else:
         raise RuntimeError('unexpected dependency data: "{}" -> {!r}'.format(name, req))
@@ -384,15 +384,22 @@ class Installer:
 
     # TODO: Upgrade strategy?
 
-    if self.install_location in ('local', 'global'):
-      if self.pip_use_target_option:
-        cmd = ['--target', self.dirs['pip_lib']]
-      else:
-        cmd = ['--prefix', self.dirs['pip_prefix']]
+    if self.install_base:
+      locs = env.pip_locations_for(self.install_base[-1][1])
+    elif self.install_location in ('local', 'global'):
+      locs = self.dirs
     elif self.install_location == 'root':
-      cmd = []
+      locs = None
     else:
       raise RuntimeError('unexpected install location: {!r}'.format(self.install_location))
+
+    if locs:
+      if self.pip_use_target_option:
+        cmd = ['--target', locs['pip_lib']]
+      else:
+        cmd = ['--prefix', locs['pip_prefix']]
+    else:
+      cmd = []
 
     cmd.extend(args)
     cmd.extend(install_modules)
@@ -536,16 +543,23 @@ class Installer:
           .format(expect[0], expect[1], manifest.identifier, directory))
       return False, manifest
 
-    if internal and self.currently_installing:
-      target_dir = os.path.join(self.currently_installing[-1][1], env.MODULES_DIRECTORY, manifest['name'])
+    # Determine our final install directory.
+    if self.install_base:
       print('Installing "{}" as internal dependency of "{}" ...'.format(
-        manifest.identifier, self.currently_installing[-1][0].identifier))
+        manifest.identifier, self.install_base[-1][0].identifier))
+      target_dir = os.path.join(self.install_base[-1][1], env.MODULES_DIRECTORY, manifest['name'])
     else:
       print('Installing "{}"...'.format(manifest.identifier))
       target_dir = os.path.join(self.dirs['packages'], manifest['name'])
 
-    self.currently_installing.append((manifest, target_dir))
+    # Push onto the stack of currently installing packages
+    self.currently_installing.append((manifest, directory if develop else target_dir))
     decorators.finally_(lambda: self.currently_installing.pop())
+
+    if internal and self.currently_installing:
+      # Push the installation directory on the stack.
+      self.install_base.append(self.currently_installing[-1])
+      decorators.finally_(lambda: self.install_base.pop())
 
     # Error if the target directory already exists. The package must be
     # uninstalled before it can be installed again.
