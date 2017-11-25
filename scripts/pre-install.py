@@ -17,4 +17,4 @@ elif has_gitdir:
   else:
     with gitref.open('w') as fp:
       fp.write(refname.strip())
-      fp.write('\n')
+      fp.write(u'\n')
