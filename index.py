@@ -43,8 +43,20 @@ import {RegistryClient} from './lib/registry'
 import PackageLifecycle from './lib/package-lifecycle'
 import env, {PACKAGE_MANIFEST} from './lib/env'
 
+def _read_gitref():
+  gitref = module.directory.joinpath('.gitref')
+  if gitref.is_file():
+    with gitref.open('r') as fp:
+      return fp.read().strip()
+  return '<unknown-gitref>'
+
+
 __version__ = module.package.payload['version']
-VERSION = "{} [{}]".format(__version__, nodepy.main.VERSION)
+VERSION = "{} ({}) [{}]".format(__version__, _read_gitref(), nodepy.main.VERSION)
+
+
+
+
 
 class Less(object):
   # http://stackoverflow.com/a/3306399/791713

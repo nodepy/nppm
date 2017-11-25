@@ -19,11 +19,15 @@
     "python>=2.7.0 || >=3.3.0"
   ],
   "include": [
+    ".gitref",
     "lib/**",
     "index.py",
     "LICENSE.txt",
     "README.md"
   ],
+  "scripts": {
+    "pre-install": "scripts/pre-install.py"
+  },
   "bin": {
     "nodepy-pm${py}": "index.py"
   },
