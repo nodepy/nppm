@@ -76,7 +76,7 @@ class ScriptMaker:
     use_launcher = maker.add_launchers and maker._is_nt
     outname = os.path.join(maker.target_dir, script_name)
     if use_launcher:
-      n, e = os.path.splitexst(script_name)
+      n, e = os.path.splitext(script_name)
       if e.startswith('.py'):
         outname = n
       outname = '{}.exe'.format(outname)
