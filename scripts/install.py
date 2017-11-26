@@ -36,6 +36,7 @@ parser.add_argument('-e', '--develop', action='store_true',
        'you want to update PM via Git or are developing it.')
 parser.add_argument('-f', '--force', action='store_true')
 parser.add_argument('--no-bootstrap', action='store_true')
+parser.add_argument('-v', '--verbose', action='store_true')
 
 
 def read_proc(proc, encoding=None, prefix=''):
@@ -44,18 +45,22 @@ def read_proc(proc, encoding=None, prefix=''):
     print(prefix + line.rstrip('\n'))
 
 
-def bootstrap_pip_deps(dirs):
-  print("installing nodepy-pm Pip dependencies...")
-  cmd = ['--prefix', dirs['pip_prefix'], '--ignore-installed']
+def bootstrap_pip_deps(dirs, verbose=False):
+  print('Bootstrapping Python dependencies ...')
+  cmd = [sys.executable, '-m', 'pip', 'install', '--prefix', dirs['pip_prefix'], '--ignore-installed']
+  if verbose:
+    cmd.append('--verbose')
   for key, value in module.package.payload['pip_dependencies'].items():
     cmd.append(key + value)
+  print('$', ' '.join(map(quote, cmd)))
+  print()
 
   with brewfix():
     # We use a subprocess here as otherwise we run into nodepy/nodepy#48,
     # "underlying buffer has been detached" when Pip uses the spinner or
     # download progress bar.
-    proc = subprocess.Popen([sys.executable, '-m', 'pip', 'install'] + cmd,
-      stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.PIPE)
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+      stderr=subprocess.STDOUT, stdin=subprocess.PIPE)
     read_proc(proc, prefix='  ')
     res = proc.wait()
 
@@ -74,7 +79,7 @@ def main():
   dirs = get_directories(location)
 
   if not args.no_bootstrap:
-    bootstrap_pip_deps(dirs)
+    bootstrap_pip_deps(dirs, args.verbose)
 
   # If we're not installing into the root location, the Pip installed
   # libraries will not be automatically found by the Node.py runtime, yet
@@ -104,7 +109,9 @@ def main():
   # will not be after NPPM was installed in root or global level.
   cmd.append('--pip-separate-process')
 
-  print("starting self-installation...")
+  print()
+  print("Self-installing nodepy-pm ...")
+  print()
 
   cmd = nodepy.runtime.exec_args + ['--python-path', dirs['pip_lib']] \
       + [str(module.directory.parent.joinpath('index'))] + cmd
