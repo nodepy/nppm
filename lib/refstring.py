@@ -86,6 +86,15 @@ class Ref(object):
   def __unicode__(self):
     return unicode(str(self))
 
+  def __repr__(self):
+    return '<Ref "{}">'.format(self)
+
+  def __eq__(self, other):
+    if isinstance(other, Ref):
+      return (self.package, self.version, self.module, self.member) == \
+          (other.package, other.version, other.module, other.member)
+    return False
+
 
 class Package(object):
   """
@@ -93,6 +102,8 @@ class Package(object):
   """
 
   def __init__(self, scope, name):
+    if name in ('.', '..'):
+      raise ValueError('invalid package name: {!r}'.format(name))
     if not name and scope:
       raise ValueError('package name can not consist of only a scope')
     self.scope = scope
@@ -109,6 +120,10 @@ class Package(object):
   def __iter__(self):
     yield self.scope
     yield self.name
+
+  def __eq__(self, other):
+    if isinstance(other, Package):
+      return (self.scope, self.name) == (other.scope, other.name)
 
 
 def parse(s):
