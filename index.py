@@ -355,6 +355,12 @@ def uninstall(package, global_, root):
   -g/--global.
   """
 
+  if package == '.' or os.path.exists(package):
+    filename = os.path.join(package, PACKAGE_MANIFEST)
+    manifest = load_manifest(filename)
+    report_manifest_issues(filename, manifest)
+    package = manifest['name']
+
   location = get_install_location(global_, root)
   installer = _install.Installer(install_location=location)
   installer.uninstall(package)
