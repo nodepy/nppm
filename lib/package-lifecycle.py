@@ -183,7 +183,9 @@ class PackageLifecycle(object):
       return self._run_command(request[1:].strip())
     else:
       args = shlex.split(request) + args
-      return nodepy.main.main(['--maindir', self.manifest.directory] + args)
+      request = args.pop(0)
+      request = os.path.join(self.manifest.directory, request)
+      return nodepy.main.main([request] + args)
 
   def _run_command(self, command):
     # TODO: On Windows, fall back to CMD.exe if SHELL is not defined.
