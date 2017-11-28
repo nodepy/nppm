@@ -578,6 +578,20 @@ class Installer:
       if not self.uninstall_directory(target_dir):
         return False, manifest
 
+    installed_files = []
+
+    # The movedir option is used for installing from Git repositories.
+    # We should move the Git directory to the target directory immediately
+    # as subsequent steps can write into that target directory and moving
+    # later would actually require us to do a merge.
+    if movedir:
+      print('Moving "{}" to "{}" ...'.format(manifest.identifier, target_dir))
+      print(os.path.exists(directory))
+      _makedirs(os.path.dirname(target_dir))
+      shutil.move(directory, target_dir)
+      installed_files.append(target_dir)
+      directory = target_dir
+
     plc = PackageLifecycle(manifest=manifest)
     try:
       plc.run('pre-install', [], script_only=True)
@@ -590,15 +604,7 @@ class Installer:
     if not self.install_dependencies_for(manifest, dev=dev):
       return False, manifest
 
-    installed_files = []
-
-    if movedir:
-      print('Moving "{}" to "{}" ...'.format(manifest.identifier, target_dir))
-      print(os.path.exists(directory))
-      _makedirs(os.path.dirname(target_dir))
-      os.rename(directory, target_dir)
-      installed_files.append(target_dir)
-    else:
+    if not movedir:
       print('Installing "{}" to "{}" ...'.format(manifest.identifier, target_dir))
       if develop:
         # Create a link file that contains the path to the actual package directory.
