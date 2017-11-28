@@ -38,7 +38,6 @@ except ImportError:
   from pipes import quote as shlex_quote
 
 import nodepy
-import config from './config'
 import logger from './logger'
 import _install from './install'
 import _manifest from './manifest'

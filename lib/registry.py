@@ -37,7 +37,29 @@ import semver from './semver'
 import refstring from './refstring'
 import text from './util/text'
 import json from './util/json'
-import config from './config'
+
+
+def get_config_registry(name):
+  reg = 'registry:' + name
+  return require.context.config.section(reg)
+
+
+def get_config_registries():
+  result = []
+  default_found = False
+  for section in require.context.config.sections():
+    if section.startswith('registry:'):
+      name = section[9:]
+      view = get_config_registry(name)
+      if name == 'default':
+        default_found = True
+      result.append(view)
+  if not default_found:
+    try:
+      result.insert(0, get_config_registry('default'))
+    except KeyError:
+      pass
+  return result
 
 
 def get_package_archive_name(package_name, version):
@@ -108,9 +130,9 @@ class RegistryClient(object):
   @staticmethod
   def get(name):
     try:
-      regconf = config.registry(name)
+      regconf = get_config_registry(name)
       regurl = regconf['url']
-    except config.NoSuchSection:
+    except KeyError:
       raise ValueError('Registry {!r} is not configured.'.format(name))
     except KeyError:
       raise ValueError('Registry {!r} has no URL configured.'.format(name))
@@ -123,7 +145,7 @@ class RegistryClient(object):
 
   @staticmethod
   def get_all():
-    return [RegistryClient.get(x.name) for x in config.registries()]
+    return [RegistryClient.get(x.name) for x in get_config_registries()]
 
   def __init__(self, name, base_url, username=None, password=None):
     self.name = name

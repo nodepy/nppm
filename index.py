@@ -36,7 +36,6 @@ import sys
 import manifest, {load as load_manifest} from './lib/manifest'
 import semver from './lib/semver'
 import refstring from './lib/refstring'
-import config from './lib/config'
 import logger from './lib/logger'
 import _install from './lib/install'
 import {RegistryClient} from './lib/registry'
@@ -416,66 +415,6 @@ def publish(force, user, password, dry, to):
 
 
 @main.command()
-@click.argument('registry', required=False, default='default')
-@click.option('--agree-tos', is_flag=True)
-@click.option('--save', is_flag=True, help='Save username in configuration.')
-@exit_with_return
-def register(registry, agree_tos, save):
-  """
-  Register a new user on the package registry. Specify the registry to
-  register to using the REGISTRY argument. Defaults to 'default'.
-  """
-
-  print('error: nodepy-pm register is currently not supported')
-  return 1
-
-  reg = RegistryClient.get(registry)
-  print('Registry:', reg.name)
-  print('URL:     ', reg.base_url)
-  if not agree_tos:
-    print()
-    print('You have to agree to the Terms of Use before you can')
-    print('register an account. Download and display terms now? [Y/n] ')
-    reply = input().strip().lower() or 'yes'
-    if reply not in ('yes', 'y'):
-      print('Aborted.')
-      return 0
-    print()
-    reg.terms() | Less(30)
-    print()
-    print('Do you agree to the above terms? [Y/n]')
-    reply = input().strip().lower() or 'yes'
-    if reply not in ('yes', 'y'):
-      print('Aborted.')
-      return 0
-
-  username = input('Username? ')
-  if len(username) < 3 or len(username) > 30:
-    print('Username must be 3 or more characters.')
-    return 1
-  password = getpass.getpass('Password? ')
-  if len(password) < 6 or len(password) > 64:
-    print('Password must be 6 or more characters long.')
-    return 1
-  if getpass.getpass('Confirm Password? ') != password:
-    print('Passwords do not match.')
-    return 1
-  email = input('E-Mail? ')
-  # TODO: Validate email.
-  if len(email) < 4:
-    print('Invalid email.')
-    return 1
-
-  msg = reg.register(username, password, email)
-  print(msg)
-
-  if save:
-    regconf['username'] = username
-    config.save()
-    print('Username saved in', config.filename)
-
-
-@main.command()
 @click.argument('directory', default='.')
 @exit_with_return
 def init(directory):
@@ -492,9 +431,8 @@ def init(directory):
     ('Package Name', 'name', None),
     ('Package Version', 'version', '1.0.0'),
     ('?Description', 'description', None),
-    ('?Author (Name <Email>)', 'author', config.get('author')),
-    ('?License', 'license', config.get('license')),
-    ('?Main', 'main', None)
+    ('?Author E-Mail(s)', 'authors', None),
+    ('?License', 'license', 'MIT')
   ]
 
   results = collections.OrderedDict()
@@ -513,9 +451,17 @@ def init(directory):
   if 'author' in results:
     results['authors'] = [results.pop('author')]
 
+  print('This is your new nodepy.json:')
+  print()
+  result = json.dumps(results, indent=2)
+  print(result)
+  print()
+  reply = input('Are you okay with this? [Y/n] ').strip().lower()
+  if reply not in ('', 'y', 'yes', 'ok'):
+    return
+
   with open(filename, 'w') as fp:
-    json.dump(results, fp, indent=2)
-    fp.write('\n')
+    fp.write(result)
 
 
 @main.command()

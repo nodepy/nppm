@@ -37,7 +37,6 @@ import tempfile
 import traceback
 
 import _registry from './registry'
-import _config from './config'
 import _download from './util/download'
 import _script from './util/script'
 import refstring from './refstring'
