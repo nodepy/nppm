@@ -22,14 +22,27 @@ Helper function to create script files for pure Python code, ppy modules or
 shell commands. Uses the Python #distlib package.
 """
 
+import errno
 import os
+import re
 import six
+import sys
 try:
   from distlib.scripts import ScriptMaker as _ScriptMaker
 except ImportError as exc:
   from pip._vendor.distlib.scripts import ScriptMaker as _ScriptMaker
 
-import argschema from '../argschema'
+try:
+  from shlex import quote
+except ImportError:
+  from pipes import quote
+
+
+def winquote(s):
+  s = s.replace('"', '\\"')
+  if re.search('\s', s) or any(c in s for c in '<>'):
+    s = '"' + s + '"'
+  return s
 
 
 class ScriptMaker:
@@ -101,6 +114,23 @@ class ScriptMaker:
     bash-script on Windows).
     """
 
+    try:
+      use_distlib = require.context.config['install.use_distlib']
+    except KeyError:
+      use_distlib = (os.name != 'nt')
+    else:
+      use_distlib = str(use_distlib).strip().lower()
+      use_distlib = (use_distlib in ('yes', 'on', 'true', '1'))
+
+    if use_distlib:
+      return self.__make_python_distlib(script_name, code)
+    else:
+      # The ScriptMaker can make .exe files, but they can sometimes be
+      # problematic, thus we default to manually creating the script files
+      # on Windows.
+      return self.__make_python_custom(script_name, code)
+
+  def __make_python_distlib(self, script_name, code):
     if os.name == 'nt' and (not script_name.endswith('.py') \
         or not script_name.endswith('.pyw')):
       # ScriptMaker._write_script() will split the extension from the script
@@ -114,6 +144,51 @@ class ScriptMaker:
     maker.set_mode = True
     maker.script_template = self._init_code() + code
     return maker.make(script_name + '=isthisreallynecessary')
+
+  def __make_python_custom(self, script_name, code):
+    code = self._init_code() + code
+    exec_permissions = int('755', 8)
+
+    try:
+      os.makedirs(self.directory)
+    except OSError as e:
+      if e.errno != errno.EEXIST:
+        raise
+
+    unix_fn = os.path.join(self.directory, script_name)
+    if os.name == 'nt':
+      python_fn = unix_fn + '.py'
+      # The shebang isn't really used on Windows, but we include it in case
+      # you look into the file and wonder what it needs to be executed with.
+      # PyLauncher can work with it, but only if it's properly quoted. Quotes
+      # are usually NOT supported in the shebang.
+      python_shebang = quote(sys.executable)
+    else:
+      python_fn = unix_fn
+      python_shebang = sys.executable
+
+    with open(python_fn, 'w') as fp:
+      fp.write('#!' + sys.executable + '\n')
+      fp.write(code)
+    os.chmod(python_fn, exec_permissions)
+
+    files = [python_fn]
+
+    if os.name == 'nt':
+      assert unix_fn != python_fn
+      files.append(unix_fn)
+      with open(unix_fn, 'w') as fp:
+        fp.write('#!bash\n')
+        fp.write('{} {}'.format(quote(sys.executable), quote(python_fn)))
+      os.chmod(unix_fn, exec_permissions)
+
+      batch_fn = os.path.join(self.directory, script_name + '.cmd')
+      files.append(batch_fn)
+      with open(batch_fn, 'w') as fp:
+        fp.write('@{} {}'.format(winquote(sys.executable), winquote(python_fn)))
+      os.chmod(batch_fn, exec_permissions)
+
+    return files
 
   def make_command(self, script_name, args):
     """
