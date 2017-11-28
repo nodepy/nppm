@@ -117,7 +117,7 @@ class ScriptMaker:
     try:
       use_distlib = require.context.config['install.use_distlib']
     except KeyError:
-      use_distlib = (os.name != 'nt')
+      use_distlib = True
     else:
       use_distlib = str(use_distlib).strip().lower()
       use_distlib = (use_distlib in ('yes', 'on', 'true', '1'))
@@ -179,13 +179,13 @@ class ScriptMaker:
       files.append(unix_fn)
       with open(unix_fn, 'w') as fp:
         fp.write('#!bash\n')
-        fp.write('{} {}'.format(quote(sys.executable), quote(python_fn)))
+        fp.write('{} {} $@\n'.format(quote(sys.executable), quote(python_fn)))
       os.chmod(unix_fn, exec_permissions)
 
       batch_fn = os.path.join(self.directory, script_name + '.cmd')
       files.append(batch_fn)
       with open(batch_fn, 'w') as fp:
-        fp.write('@{} {}'.format(winquote(sys.executable), winquote(python_fn)))
+        fp.write('@{} {} %*\n'.format(winquote(sys.executable), winquote(python_fn)))
       os.chmod(batch_fn, exec_permissions)
 
     return files
