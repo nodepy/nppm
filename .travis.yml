@@ -14,7 +14,7 @@ install:
 script:
 - nodepy --version
 - nodepy scripts/install
-- nodepy-pm version
+- nodepy-pm --version
 - nodepy-pm dirs
 - nodepy-pm dirs -g
 - nodepy-pm dirs --root

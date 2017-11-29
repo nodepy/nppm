@@ -169,13 +169,14 @@ parser.add_argument('--version', action='store_true',
   help='Report the Node.py version and exit.')
 
 subparsers = parser.add_subparsers(dest='cmd')
+subparsers.required = False
 
 init_parser = subparsers.add_parser('init')
 init_parser.add_argument('directory', nargs='?',
   help='The directory to save the nodepy.json to.')
 
 install_parser = subparsers.add_parser('install')
-install_parser.add_argument('packages', metavar='SPEC', nargs='?',
+install_parser.add_argument('packages', metavar='SPEC', nargs='*',
   help='A list of one or more package specifiers to install. If no packages '
     'are specified (together with -e, --develop), the dependencies of the '
     'current package are installed (--upgrade will be implied in that case).')
@@ -183,6 +184,7 @@ install_parser.add_argument('-U', '--upgrade', action='store_true',
   help='Don\'t skip installing packages that already exist but instead '
     'install the upgrade to the version.')
 install_parser.add_argument('-e', '--develop', action='append', metavar='PATH',
+  default=[],
   help='Install a Node.py package in development mode. This will create a '
     'plain-test link file instead of installing the package contents to the '
     'modules directory. This only works for packages existing on the '
@@ -366,7 +368,7 @@ def do_install(args):
       pip_packages.append(manifest.PipRequirement.from_line(spec[4:]))
     else:
       req = manifest.Requirement.from_line(spec, expect_name=True)
-      req.inherit_values(link=False, registry=registry, internal=internal, pure=pure)
+      req.inherit_values(internal=args.internal, pure=args.pure)
       npy_packages.append(req)
   for pkg in args.packages:
     handle_spec(pkg, False)
