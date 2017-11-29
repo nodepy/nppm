@@ -33,7 +33,6 @@
   },
   "pip_dependencies": {
     "appdirs": ">=1.4.2",
-    "click": ">=6.7",
     "distlib": ">=0.2.4",
     "hammock": ">=0.2.4",
     "requests": ">=2.13.0",
