@@ -2,6 +2,8 @@
 Installs Node.py PM from source.
 """
 
+from __future__ import print_function
+
 if require.main != module:
   raise RuntimeError('must not be required')
 
@@ -111,6 +113,7 @@ def main():
 
   print()
   print("Self-installing nodepy-pm ...")
+  print('$', ' '.join(map(quote, cmd)))
   print()
 
   cmd = nodepy.runtime.exec_args + ['--python-path', dirs['pip_lib']] \

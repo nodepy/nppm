@@ -359,7 +359,7 @@ def do_install(args):
       pip_packages.append(manifest.PipRequirement.from_line(spec[4:]))
     else:
       req = manifest.Requirement.from_line(spec, expect_name=True)
-      req.inherit_values(internal=args.internal, pure=args.pure)
+      req.inherit_values(link=develop, internal=args.internal, pure=args.pure)
       npy_packages.append(req)
   for pkg in args.packages:
     handle_spec(pkg, False)

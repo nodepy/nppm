@@ -7,6 +7,8 @@ If you want to install PM directly from source, use the `install.py`
 script instead.
 """
 
+from __future__ import print_function
+
 if require.main != module:
   raise RuntimeError('must not be required')
 
