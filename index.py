@@ -283,7 +283,6 @@ run_parser.add_argument('argv', nargs=argparse.REMAINDER)
 
 def main(argv=None):
   args = parser.parse_args(argv)
-  assert not args.version  # should be handled by argparse
   if args.cmd:
     return globals()['do_' + args.cmd](args)
   else:
