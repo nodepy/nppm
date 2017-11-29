@@ -142,7 +142,7 @@ def load_manifest(filename):
   return data
 
 
-__version__ = "{} ({})".format(
+__version__ = "nodepy {} ({})".format(
   module.package.payload['version'], read_gitref())
 
 
@@ -165,11 +165,10 @@ parser = argparse.ArgumentParser(description=reindent('''
       pip+<pipspec>
   ''', '  '),
   formatter_class=argparse.RawDescriptionHelpFormatter)
-parser.add_argument('--version', action='store_true',
+parser.add_argument('--version', action='version', version=__version__,
   help='Report the Node.py version and exit.')
 
 subparsers = parser.add_subparsers(dest='cmd')
-subparsers.required = False
 
 init_parser = subparsers.add_parser('init')
 init_parser.add_argument('directory', nargs='?',
@@ -284,9 +283,7 @@ run_parser.add_argument('argv', nargs=argparse.REMAINDER)
 
 def main(argv=None):
   args = parser.parse_args(argv)
-  if args.version:
-    print('nodepy-pm', __version__)
-    return 0
+  assert not args.version  # should be handled by argparse
   if args.cmd:
     return globals()['do_' + args.cmd](args)
   else:
@@ -295,12 +292,6 @@ def main(argv=None):
 
 
 def do_install(args):
-  #packages, upgrade, develop, global_, root, ignore_installed,
-  #packagedir, recursive, pip_separate_process, pip_use_target_option,
-  #info, dev, save, save_dev, save_ext, verbose, registry, internal,
-  #pure):
-  print(args)
-
   if not args.packagedir:
     args.packagedir = '.'
   manifest_filename = os.path.join(args.packagedir, PACKAGE_MANIFEST)
