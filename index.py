@@ -182,7 +182,7 @@ install_parser.add_argument('packages', metavar='SPEC', nargs='*',
 install_parser.add_argument('-U', '--upgrade', action='store_true',
   help='Don\'t skip installing packages that already exist but instead '
     'install the upgrade to the version.')
-install_parser.add_argument('--pip', nargs='...',
+install_parser.add_argument('--pip', nargs='...', default=[],
   help='Consider all following arguments to be Pip requirements.')
 install_parser.add_argument('-e', '--develop', action='append', metavar='PATH',
   default=[],
