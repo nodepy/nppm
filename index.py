@@ -182,6 +182,8 @@ install_parser.add_argument('packages', metavar='SPEC', nargs='*',
 install_parser.add_argument('-U', '--upgrade', action='store_true',
   help='Don\'t skip installing packages that already exist but instead '
     'install the upgrade to the version.')
+install_parser.add_argument('--pip', nargs='...',
+  help='Consider all following arguments to be Pip requirements.')
 install_parser.add_argument('-e', '--develop', action='append', metavar='PATH',
   default=[],
   help='Install a Node.py package in development mode. This will create a '
@@ -330,16 +332,18 @@ def do_install(args):
     fatal('can not --save, --save-dev or --save-ext without nodepy.json')
     return 1
 
+  pure_install = (not args.packages and not args.develop and not args.pip)
+
   # Default to --dev if no packages are specified.
   if (not args.dev and not args.production):
-    args.dev = (not args.packages and not args.develop)
+    args.dev = pure_install
     args.production = not args.dev
 
   installer = create_installer(args)
 
   # If no packages to install are specified, install the dependencies of the
   # current packages. Imply --upgrade and --develop.
-  if (not args.packages and not args.develop):
+  if pure_install:
     installer.upgrade = True
     success, _manifest = installer.install_from_directory(
         '.', develop=True, dev=args.dev)
@@ -364,12 +368,16 @@ def do_install(args):
     handle_spec(pkg, False)
   for pkg in args.develop:
     handle_spec(pkg, True)
+  for pkg in args.pip:
+    handle_spec('pip+' + pkg, False)
 
   # Install Python dependencies.
   python_deps = {}
   python_additional = []
   for spec in pip_packages:
-    if (save or save_dev) and not spec.req:
+    if spec.link:
+      python_additional.append(str(spec.link))
+    elif (args.save or args.save_dev) and not spec.req:
       fatal("'{}' is not something we can install via nodepy-pm with --save/--save-dev".format(spec.spec))
     if spec.req:
       python_deps[spec.name] = str(spec.specifier)
