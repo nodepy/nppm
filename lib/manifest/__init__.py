@@ -380,12 +380,11 @@ class Requirement(object):
       kwargs[flag] = value if value else True
       line = line[index+1:].lstrip()
 
-    if expect_name:
-      if '@' in line:
-        left, _, right = line.partition('@')
-        if not left.startswith('git+'):
-          name = left
-          line = right.rstrip()
+    if expect_name and not cls._is_path(line) and '@' in line:
+      left, _, right = line.partition('@')
+      if not left.startswith('git+'):
+        name = left
+        line = right.rstrip()
 
     if line.startswith('git+'):
       kwargs['git_url'] = line[4:]
