@@ -212,7 +212,7 @@ class ScriptMaker:
 
     code = (
       'import sys, nodepy.main, nodepy.runtime\n'
-      'nodepy.runtime.script = {{"location": {location!r}, "original_path": sys.path[:]}}\n'
+      'nodepy.runtime.script = {{"location": {location!r}, "original_path": sys.path[:], "args": sys.argv[:]}}\n'
       'sys.argv = [sys.argv[0]] + {args!r} + sys.argv[1:]\n'
       'sys.exit(nodepy.main.main())\n'
       .format(args=args, location=self.location)
