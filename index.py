@@ -165,7 +165,8 @@ parser = argparse.ArgumentParser(description=reindent('''
       pip+<pipspec>
   ''', '  '),
   formatter_class=argparse.RawDescriptionHelpFormatter)
-parser.add_argument('--version', action='version', version=__version__,
+parser.add_argument('--version', action='version',
+  version='{} on Python {}'.format(__version__, sys.version.split(' ', 1)[0]),
   help='Report the Node.py version and exit.')
 
 subparsers = parser.add_subparsers(dest='cmd')

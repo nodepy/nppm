@@ -230,7 +230,7 @@ def load(file, sorted=True, directory=None):
 
   object_hook = collections.OrderedDict if sorted else None
   try:
-    return Manifest(directory, json.load(file, object_hook=object_hook))
+    return Manifest(directory, json.load(file, object_pairs_hook=object_hook))
   finally:
     if close:
       file.close()

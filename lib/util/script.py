@@ -117,7 +117,13 @@ class ScriptMaker:
     try:
       use_distlib = require.context.config['install.use_distlib']
     except KeyError:
-      use_distlib = True
+      # On Windows, we'll use the distlib ScriptMaker if the Python executable
+      # is not on a path with whitespace in it. If it has whitespace, we must
+      # fallback on your own mechanism that works WITH spaces.
+      if os.name == 'nt' and ' ' in sys.executable:
+        use_distlib = False
+      else:
+        use_distlib = True
     else:
       use_distlib = str(use_distlib).strip().lower()
       use_distlib = (use_distlib in ('yes', 'on', 'true', '1'))

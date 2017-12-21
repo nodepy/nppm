@@ -204,7 +204,7 @@ class Installer:
       raise PackageNotFound(package)
 
     if lnk:
-      manifest_fn = os.path.join(lnk, PACKAGE_MANIFEST)
+      manifest_fn = os.path.join(str(lnk), PACKAGE_MANIFEST)
     else:
       manifest_fn = os.path.join(dirname, PACKAGE_MANIFEST)
 
