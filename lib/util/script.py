@@ -185,7 +185,7 @@ class ScriptMaker:
       files.append(unix_fn)
       with open(unix_fn, 'w') as fp:
         fp.write('#!bash\n')
-        fp.write('{} {} $@\n'.format(quote(sys.executable), quote(python_fn)))
+        fp.write('{} {} "$@"\n'.format(quote(sys.executable), quote(python_fn)))
       os.chmod(unix_fn, exec_permissions)
 
       batch_fn = os.path.join(self.directory, script_name + '.cmd')
