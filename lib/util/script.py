@@ -77,26 +77,48 @@ class ScriptMaker:
   def _get_maker(self):
     return _ScriptMaker(None, self.directory)
 
+  def _use_distlib(self):
+    try:
+      use_distlib = require.context.config['install.use_distlib']
+    except KeyError:
+      # On Windows, we'll use the distlib ScriptMaker if the Python executable
+      # is not on a path with whitespace in it. If it has whitespace, we must
+      # fallback on your own mechanism that works WITH spaces.
+      if os.name == 'nt' and ' ' in sys.executable:
+        use_distlib = False
+      else:
+        use_distlib = True
+    else:
+      use_distlib = str(use_distlib).strip().lower()
+      use_distlib = (use_distlib in ('yes', 'on', 'true', '1'))
+    return use_distlib
+
   def get_files_for_script_name(self, script_name):
     """
     Returns the filenames that would be created by one of the `make_...()`
     functions.
     """
 
-    maker = self._get_maker()
-
-    # Reproduces _ScriptMaker._write_script() a little bit.
-    use_launcher = maker.add_launchers and maker._is_nt
     outname = os.path.join(maker.target_dir, script_name)
-    if use_launcher:
-      n, e = os.path.splitext(script_name)
-      if e.startswith('.py'):
-        outname = n
-      outname = '{}.exe'.format(outname)
+
+    if self._use_distlib():
+      maker = self._get_maker()
+      # Reproduces _ScriptMaker._write_script() a little bit.
+      use_launcher = maker.add_launchers and maker._is_nt
+      if use_launcher:
+        n, e = os.path.splitext(script_name)
+        if e.startswith('.py'):
+          outname = n
+        outname = '{}.exe'.format(outname)
+      else:
+        if maker._is_nt and not outname.endswith('.py'):
+          outname += '.py'
+      return [outname]
     else:
-      if maker._is_nt and not outname.endswith('.py'):
-        outname += '.py'
-    return [outname]
+      result = [outname]
+      if os.name == 'nt':
+        result += [outname + '.py', outname + '.cmd']
+      return result
 
   def make_python(self, script_name, code):
     """
@@ -114,21 +136,7 @@ class ScriptMaker:
     bash-script on Windows).
     """
 
-    try:
-      use_distlib = require.context.config['install.use_distlib']
-    except KeyError:
-      # On Windows, we'll use the distlib ScriptMaker if the Python executable
-      # is not on a path with whitespace in it. If it has whitespace, we must
-      # fallback on your own mechanism that works WITH spaces.
-      if os.name == 'nt' and ' ' in sys.executable:
-        use_distlib = False
-      else:
-        use_distlib = True
-    else:
-      use_distlib = str(use_distlib).strip().lower()
-      use_distlib = (use_distlib in ('yes', 'on', 'true', '1'))
-
-    if use_distlib:
+    if self._use_distlib():
       return self.__make_python_distlib(script_name, code)
     else:
       # The ScriptMaker can make .exe files, but they can sometimes be
@@ -185,13 +193,13 @@ class ScriptMaker:
       files.append(unix_fn)
       with open(unix_fn, 'w') as fp:
         fp.write('#!bash\n')
-        fp.write('{} {} "$@"\n'.format(quote(sys.executable), quote(python_fn)))
+        fp.write('{} "$(dirname ${{BASH_SOURCE[0]}})/{}" "$@"\n'.format(quote(sys.executable), os.path.basename(python_fn)))
       os.chmod(unix_fn, exec_permissions)
 
       batch_fn = os.path.join(self.directory, script_name + '.cmd')
       files.append(batch_fn)
       with open(batch_fn, 'w') as fp:
-        fp.write('@{} {} %*\n'.format(winquote(sys.executable), winquote(python_fn)))
+        fp.write('@{} "%~dp0{}" %*\n'.format(winquote(sys.executable), os.path.basename(python_fn)))
       os.chmod(batch_fn, exec_permissions)
 
     return files
