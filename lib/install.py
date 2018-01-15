@@ -45,6 +45,7 @@ import brewfix from './brewfix'
 import PackageLifecycle from './package-lifecycle'
 import env, { PACKAGE_MANIFEST } from './env'
 import manifest from './manifest'
+import semver from './semver'
 
 default_exclude_patterns = [
     '.DS_Store', '.svn/*', '.git*', env.MODULES_DIRECTORY + '/*',
@@ -326,7 +327,7 @@ class Installer:
     install_deps = []
     for name, req in deps.items():
       if not isinstance(req, manifest.Requirement):
-        req = manifest.Requirement.from_line(req)
+        req = manifest.Requirement.from_line(req, name=name)
       try:
         have_package = self.find_package(name, req.internal)
         if isinstance(have_package, InvalidPackage):
@@ -335,7 +336,7 @@ class Installer:
         install_deps.append((name, req))
       else:
         if req.type == 'registry':
-          if not req.selector(have_package.version):
+          if not req.selector(semver.Version(have_package['version'])):
             print('  Warning: Dependency "{}@{}" unsatisfied, have "{}" installed'
                 .format(name, req.selector, have_package.identifier))
           else:
