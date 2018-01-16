@@ -264,7 +264,7 @@ class Manifest(collections.OrderedDict):
 
   @property
   def identifier(self):
-    return '{}@{}'.format(self['name'], self['version'])
+    return '{}@{}'.format(self['name'], self.get('version', '*'))
 
   def iter_fields(self, name=None):
     return iter_fields(self, name)
