@@ -586,7 +586,6 @@ class Installer:
     # later would actually require us to do a merge.
     if movedir:
       print('Moving "{}" to "{}" ...'.format(manifest.identifier, target_dir))
-      print(os.path.exists(directory))
       _makedirs(os.path.dirname(target_dir))
       shutil.move(directory, target_dir)
       installed_files.append(target_dir)
