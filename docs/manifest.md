@@ -122,7 +122,8 @@ callback scripts are:
 
 * `pre-script`: Called before any script is executed.
 * `pre-install`, `post-install`: Called before and after the package was
-  installed, respectively.
+  installed, respectively. The `post-install` script has access to the
+  nodepy-pm `installer` object via a global variable.
 * `pre-uninstall`: Called before the package is being uninstalled.
 * `pre-dist`, `post-dist`: Called before and after a source or binary
   distribution of the package is created, respectively.

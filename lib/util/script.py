@@ -99,7 +99,7 @@ class ScriptMaker:
     functions.
     """
 
-    outname = os.path.join(maker.target_dir, script_name)
+    outname = os.path.join(self.directory, script_name)
 
     if self._use_distlib():
       maker = self._get_maker()

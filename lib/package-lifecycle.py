@@ -149,7 +149,7 @@ class PackageLifecycle(object):
     self.upload(filename, user, password, force, dry, registry)
     self.run('post-publish', [], script_only=True)
 
-  def run(self, script, args, script_only=False):
+  def run(self, script, args, script_only=False, directory=None, globals=None):
     bindir = find_nearest_bin_directory(pathlib.Path.cwd())
     if not bindir:
       bindir = env.get_directories('local')['bin']
@@ -159,12 +159,12 @@ class PackageLifecycle(object):
       if (not self.manifest or script not in self.manifest.get('scripts', {})) and not script_only:
         self._run_command(shlex_quote(script) + ' ' + ' '.join(map(shlex_quote, args)))
       else:
-        self._run_script(script, args=args)
+        self._run_script(script, args, directory=directory, globals=globals)
     finally:
       os.environ['PATH'] = oldpath
     return True
 
-  def _run_script(self, script, args):
+  def _run_script(self, script, args, directory=None, globals=None):
     """
     Invoke a script for the specified *event* name. Does nothing if no script
     for the specified event is specified.
@@ -183,8 +183,12 @@ class PackageLifecycle(object):
     else:
       args = shlex.split(request) + args
       request = args.pop(0)
-      request = os.path.join(self.manifest.directory, request)
-      return nodepy.main.main([request] + args)
+      request = os.path.abspath(os.path.join(directory or self.manifest.directory, request))
+      module = require.resolve(request)
+      module.init()
+      vars(module.namespace).update(globals or {})
+      with require.context.push_main(module):
+        require.context.load_module(module, do_init=False)
 
   def _run_command(self, command):
     # TODO: On Windows, fall back to CMD.exe if SHELL is not defined.

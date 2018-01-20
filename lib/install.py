@@ -522,6 +522,7 @@ class Installer:
       directory to the target install directory isntead of a normal
       install.
     internal (bool): Install as an internal dependency.
+    pure (bool): Don't install command-line scripts (`"bin"` section).
 
     # Returns
     (success, manifest)
@@ -540,7 +541,9 @@ class Installer:
       print('Error: directory "{}":'.format(directory), exc)
       return False, None
 
-    if expect is not None and (manifest['name'], manifest['version']) != expect:
+    if expect is not None and (
+        manifest['name'] != expect[0] or
+        (expect[1] and manifest['version'] != expect[1])):
       print('Error: Expected to install "{}@{}" but got "{}" in "{}"'
           .format(expect[0], expect[1], manifest.identifier, directory))
       return False, manifest
@@ -639,7 +642,7 @@ class Installer:
     #    fp.write('\n')
 
     try:
-      plc.run('post-install', [], script_only=True)
+      plc.run('post-install', [], script_only=True, directory=target_dir, globals={'installer': self})
     except:
       traceback.print_exc()
       print('Error: post-install script failed.')
