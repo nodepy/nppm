@@ -201,7 +201,7 @@ class Installer:
       dirname = os.path.join(self.dirs['packages'], package)
 
     lnk = nodepy.resolver.StdResolver.resolve_link(require.context, pathlib.Path(dirname))
-    if not os.path.isdir(lnk):
+    if not lnk.is_dir():
       raise PackageNotFound(package)
 
     if lnk:
