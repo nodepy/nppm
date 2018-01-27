@@ -19,3 +19,13 @@ During development, it might be desirable to install nodepy-pm locally in
 editable (development) mode:
 
     $ nodepy ./scripts/install -le
+
+### Troubleshooting
+
+__FileNotFoundError: No such file or directory: '...\\installed-files.txt'__
+
+This is a bug [that will be fixed with Pip 9.0.2](https://github.com/pypa/pip/issues/373#issuecomment-302632300).
+In the meantime, to fix this issues, ensure that you have the `wheel` package
+installed.
+
+    pip install wheel [--user]
