@@ -116,11 +116,17 @@ def main():
   print('$', ' '.join(map(quote, cmd)))
   print()
 
-  cmd = nodepy.runtime.exec_args + ['--python-path', dirs['pip_lib']] \
-      + [str(module.directory.parent.joinpath('index'))] + cmd
+  prefix_cmd = list(nodepy.runtime.exec_args)
+  prefix_cmd += [str(module.directory.parent.joinpath('index'))]
+  if args.local:
+    # Adding this path when the global or user-local is used will cause
+    # localimport>2 to disable all modules already imported and found in that
+    # system or user library path. This will cause issues like "nodepy.utils"
+    # loosing its "machinery" member (if nodepy is installed in that path).
+    prefix_cmd += ['--python-path', dirs['pip_lib']]
 
-  proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-    stdin=subprocess.PIPE)
+  proc = subprocess.Popen(prefix_cmd + cmd, stdout=subprocess.PIPE,
+    stderr=subprocess.STDOUT, stdin=subprocess.PIPE)
   read_proc(proc, prefix='  ')
   return proc.wait()
 
