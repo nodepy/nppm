@@ -25,6 +25,7 @@ shell commands. Uses the Python #distlib package.
 import errno
 import os
 import re
+import textwrap
 import six
 import sys
 try:
@@ -58,10 +59,13 @@ class ScriptMaker:
     self.pythonpath = []
 
   def _init_code(self):
-    code = (
-      '# Initialize environment variables (from ScriptMaker).\n'\
-      'import os, sys\n'
-    )
+    code = textwrap.dedent('''
+      # Initialize environment variables (from ScriptMaker).
+      import os, sys
+      curdir = os.path.normpath(os.path.abspath(os.path.dirname(__file__)))
+      try: sys.path.remove(curdir)
+      except ValueError: pass
+    ''')
     if self.path:
       path = [os.path.abspath(x) for x in self.path]
       code += (
