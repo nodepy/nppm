@@ -47,9 +47,15 @@ def read_proc(proc, encoding=None, prefix=''):
     print(prefix + line.rstrip('\n'))
 
 
-def bootstrap_pip_deps(dirs, verbose=False):
+def bootstrap_pip_deps(dirs, location, verbose=False):
   print('Bootstrapping Python dependencies ...')
-  cmd = [sys.executable, '-m', 'pip', 'install', '--prefix', dirs['pip_prefix'], '--ignore-installed']
+  cmd = [sys.executable, '-m', 'pip', 'install']
+  if location == 'local':
+    cmd += ['--prefix', dirs['pip_prefix'], '--ignore-installed']
+  elif location == 'global':
+    cmd += ['--user']
+  elif location != 'root':
+    assert False, repr(location)
   if verbose:
     cmd.append('--verbose')
   for key, value in module.package.payload['pip_dependencies'].items():
@@ -81,7 +87,7 @@ def main():
   dirs = get_directories(location)
 
   if not args.no_bootstrap:
-    bootstrap_pip_deps(dirs, args.verbose)
+    bootstrap_pip_deps(dirs, location, args.verbose)
 
   # If we're not installing into the root location, the Pip installed
   # libraries will not be automatically found by the Node.py runtime, yet
