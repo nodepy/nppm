@@ -29,7 +29,6 @@ import functools
 import getpass
 import nodepy
 import os
-import pip.req
 import six
 import sys
 import textwrap

@@ -22,11 +22,15 @@ from __future__ import print_function
 from fnmatch import fnmatch
 from nodepy.utils import pathlib
 
+try:
+  import pip._internal.commands as pip_commands
+except ImportError:
+  import pip.commands as pip_commands
+
 import contextlib
 import errno
 import nodepy.main
 import os
-import pip.commands
 import shlex
 import shutil
 import six
@@ -418,7 +422,7 @@ class Installer:
       if self.pip_separate_process:
         res = subprocess.call([sys.executable, '-m', 'pip', 'install'] + cmd)
       else:
-        res = pip.commands.install.InstallCommand().main(cmd)
+        res = pip_commands.install.InstallCommand().main(cmd)
       if res != 0:
         print('Error: `pip install` failed with exit-code', res)
         return False

@@ -4,13 +4,18 @@ manifest and means to validate its content.
 """
 
 from nodepy.utils import as_text, json
+
 import collections
 import os
-import pip.req
 import six
 import cfgparser from './cfgparser'
 import semver from '../semver'
 import refstring from '../refstring'
+
+try:
+  import pip._internal.req as pip_req
+except ImportError:
+  import pip.req as pip_req
 
 # A list of strings that are accepted in the manifest's "categories" field.
 categories = [
@@ -273,7 +278,7 @@ class Manifest(collections.OrderedDict):
     return eval_fields(self, vars, name, default)
 
 
-class PipRequirement(pip.req.InstallRequirement):
+class PipRequirement(pip_req.InstallRequirement):
 
   @classmethod
   def from_line(cls, line, *args, **kwargs):

@@ -21,8 +21,12 @@
 import distutils.sysconfig
 import json
 import os
-import pip.locations
 import sys
+
+try:
+  import pip._internal.locations as pip_locations
+except ImportError:
+  import pip.locations as pip_locations
 
 PACKAGE_MANIFEST = module.context.package_manifest
 MODULES_DIRECTORY = module.context.modules_directory
@@ -62,7 +66,7 @@ def get_directories(location, auto_upgrade=True):
   if auto_upgrade and location == 'global' and is_virtualenv():
     location = 'root'
 
-  local = pip.locations.distutils_scheme('', prefix=PIP_DIRECTORY)
+  local = pip_locations.distutils_scheme('', prefix=PIP_DIRECTORY)
   if location == 'local':
     return {
       'packages': MODULES_DIRECTORY,
@@ -73,7 +77,7 @@ def get_directories(location, auto_upgrade=True):
     }
 
   user = (location == 'global')
-  scheme = pip.locations.distutils_scheme('', user=user)
+  scheme = pip_locations.distutils_scheme('', user=user)
 
   return {
     # Install Node.py modules near the site-packages.
@@ -93,7 +97,7 @@ def pip_locations_for(directory):
   that contains the pip data (i.e. `myproject/.nodepy`).
   """
 
-  scheme = pip.locations.distutils_scheme('', prefix=PIP_DIRECTORY)
+  scheme = pip_locations.distutils_scheme('', prefix=PIP_DIRECTORY)
   return {
     'pip_prefix': os.path.join(directory, scheme['data']),
     'pip_bin': os.path.join(directory, scheme['scripts']),
