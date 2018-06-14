@@ -38,6 +38,7 @@ installed.
 
 * Renamed from `nodepy-pm` to `nppm`
 * Implement compatibility with Pip 10
+* Add MIT license header to all source files
 
 ---
 
