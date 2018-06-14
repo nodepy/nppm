@@ -14,8 +14,10 @@ import refstring from '../refstring'
 
 try:
   import pip._internal.req as pip_req
+  import pip._internal.exceptions as pip_exceptions
 except ImportError:
   import pip.req as pip_req
+  import pip.exceptions as pip_exceptions
 
 # A list of strings that are accepted in the manifest's "categories" field.
 categories = [
@@ -284,7 +286,7 @@ class PipRequirement(pip_req.InstallRequirement):
   def from_line(cls, line, *args, **kwargs):
     try:
       return super(PipRequirement, cls).from_line(line, *args, **kwargs)
-    except pip.exceptions.InstallationError:
+    except pip_exceptions.InstallationError:
       raise ValueError('invalid Pip requirement: {!r}'.format(line))
 
 

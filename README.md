@@ -37,6 +37,7 @@ installed.
 ### v2.1.0 (unreleased)
 
 * Renamed from `nodepy-pm` to `nppm`
+* Implement compatibility with Pip 10
 
 ---
 
