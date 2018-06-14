@@ -146,7 +146,7 @@ __version__ = "nodepy {} ({})".format(
 
 
 parser = argparse.ArgumentParser(description=reindent('''
-    Nodepy-pm is the package manager for the Node.py CPython runtime.
+    NPPM is the package manager for the Node.py CPython runtime.
     It can be used to install standard Python and Node.py packages locally,
     globally (per-user) or system-wide. Node.py does not require virtualenvs
     to ensure a locally unique package environment.
@@ -236,7 +236,7 @@ install_parser.add_argument('--save-ext', action='store_true',
   help='Add the installed Node.py packages to the "extensions" field. '
     'This option implies --save.')
 install_parser.add_argument('-v', '--verbose', action='count',
-  help='Enable verbose output for nodepy-pm and Pip.')
+  help='Enable verbose output for nppm and Pip.')
 install_parser.add_argument('--internal', action='store_true', default=None,
   help='Install the specified Node.py packages as internal dependencies. '
     'This flag has no immediate effect on local install, but the --internal '
@@ -378,7 +378,7 @@ def do_install(args):
     if spec.link:
       python_additional.append(str(spec.link))
     elif (args.save or args.save_dev) and not spec.req:
-      fatal("'{}' is not something we can install via nodepy-pm with --save/--save-dev".format(spec.spec))
+      fatal("'{}' is not something we can install via nppm with --save/--save-dev".format(spec.spec))
     if spec.req:
       python_deps[spec.name] = str(spec.specifier)
     else:

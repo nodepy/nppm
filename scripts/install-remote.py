@@ -1,5 +1,5 @@
 """
-This script is linked from the nodepy/nodepy-pm@master branch under
+This script is linked from the nodepy/nppm@master branch under
 `https://nodepy.org/install-pm` and can be used to install PM from the
 internet.
 
@@ -97,7 +97,7 @@ def main():
   if not args.ref:
     # Get a list of all version tags.
     versions = []
-    for tag in gh_api('repos/nodepy/nodepy-pm/tags'):
+    for tag in gh_api('repos/nodepy/nppm/tags'):
       try:
         version = tuple(map(int, tag['name'].lstrip('v').split('.')))
       except ValueError:
@@ -113,11 +113,11 @@ def main():
     args.ref = versions[-1][1]['name']
 
   print('downloading zipball for "{}"...'.format(args.ref))
-  archive = gh_api('repos/nodepy/nodepy-pm/zipball/{}'.format(args.ref), raw=True)
+  archive = gh_api('repos/nodepy/nppm/zipball/{}'.format(args.ref), raw=True)
   zipf = zipfile.ZipFile(io.BytesIO(archive.read()))
 
   print('unpacking zipball...')
-  with tempdir(suffix='nodepy-pm-{}'.format(args.ref)) as dirname:
+  with tempdir(suffix='nppm-{}'.format(args.ref)) as dirname:
     zipf.extractall(dirname)
     installer = next((x for x in zipf.namelist() if x.endswith('scripts/install.py')), None)
     if not installer:

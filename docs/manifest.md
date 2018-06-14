@@ -3,11 +3,11 @@ title = "The Package Manifest (nodepy.json)"
 +++
 
 Node.py package information is saved in a `nodepy.json` file. To load and
-validate such files, use the `nodepy-pm/manifest` module.
+validate such files, use the `nppm/manifest` module.
 
 ```python
 import {parse as parse_manifest, InvalidPackageManifest}
-  from 'nodepy-pm/manifest'
+  from 'nppm/manifest'
 
 try:
   manifest = parse_manifest('nodepy.json')
@@ -77,8 +77,8 @@ are understood by the Node.py package manager:
 
 #### `categories`
 
-The list of available categories can be accessed via the `nodepy-pm/manifest`
-module (`require('nodepy-pm/manifest').categories`). Below is a copy of the
+The list of available categories can be accessed via the `nppm/manifest`
+module (`require('nppm/manifest').categories`). Below is a copy of the
 supported categories (WIP):
 
 * CLI
@@ -123,7 +123,7 @@ callback scripts are:
 * `pre-script`: Called before any script is executed.
 * `pre-install`, `post-install`: Called before and after the package was
   installed, respectively. The `post-install` script has access to the
-  nodepy-pm `installer` object via a global variable.
+  nppm `installer` object via a global variable.
 * `pre-uninstall`: Called before the package is being uninstalled.
 * `pre-dist`, `post-dist`: Called before and after a source or binary
   distribution of the package is created, respectively.
@@ -182,7 +182,7 @@ The following flags are supported:
   in the global package manager configuration (`~/.nodepy/pm-config.ini`).
   Passing this option for a non-registry based dependency is an error.
 
-You can use the `nodepy-pm/manifest:Requirement` class and its `.from_line()`
+You can use the `nppm/manifest:Requirement` class and its `.from_line()`
 method to parse such dependency specifications.
 
 ### `pip_dependencies`

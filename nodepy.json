@@ -1,5 +1,5 @@
 {
-  "name": "nodepy-pm",
+  "name": "nppm",
   "version": "2.0.2",
   "license": "MIT",
   "description": "The Node.py Package Manager",
@@ -29,7 +29,7 @@
     "pre-install": "scripts/pre-install.py"
   },
   "bin": {
-    "nodepy-pm${py}": "index.py"
+    "nppm${py}": "index.py"
   },
   "pip_dependencies": {
     "appdirs": ">=1.4.2",
