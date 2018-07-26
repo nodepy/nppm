@@ -23,6 +23,7 @@
 from __future__ import print_function
 from fnmatch import fnmatch
 from nodepy.utils import pathlib
+from nr.fs import issub
 
 try:
   import pip._internal.commands as pip_commands
@@ -89,6 +90,11 @@ def _check_include_file(filename, include, exclude):
   if include is not None:
     return _match_any_pattern(filename, include)
   return not _match_any_pattern(filename, exclude)
+
+
+def is_subdirectory(dir, parent):
+  rel = os.path.relpath(os.path.abspath(dir), os.path.abspath(parent))
+  return issub(rel)
 
 
 class PackageNotFound(Exception):
@@ -649,8 +655,17 @@ class Installer:
         print('  Creating "{}"...'.format(os.path.basename(target_dir) + env.LINK_SUFFIX))
         linkfn = os.path.join(target_dir + env.LINK_SUFFIX)
         _makedirs(os.path.dirname(linkfn))
+
+        # Use a relative link if the linked module is inside the
+        # current reference directory (the one that contains the .nodepy
+        # install directory).
+        target = os.path.abspath(directory)
+        if is_subdirectory(target, self.dirs['reference_dir']):
+          target = os.path.relpath(target, os.path.dirname(target_dir))
+
         with open(linkfn, 'w') as fp:
-          fp.write(os.path.abspath(directory))
+          fp.write(target)
+
         installed_files.append(linkfn)
       else:
         _makedirs(target_dir)
