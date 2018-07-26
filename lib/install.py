@@ -69,8 +69,14 @@ def _match_any_pattern(filename, patterns, gitignore_style=False):
   if os.name == 'nt':
     filename = filename.replace('\\', '/')
   for pattern in patterns:
-    if filename == pattern or filename.startswith(pattern + '/') or \
-        (gitignore_style and filename.endswith('/' + pattern)):
+    if filename == pattern:
+      return True
+    if gitignore_style:
+      x = '/' + pattern if pattern[0] != '/' else pattern
+      if filename.endswith(x):
+        return True
+    x = pattern + '/' if pattern[-1] != '/' else pattern
+    if filename.startswith(x):
       return True
     if fnmatch(filename, pattern):
       return True
