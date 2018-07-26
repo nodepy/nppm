@@ -53,6 +53,8 @@ import env, { PACKAGE_MANIFEST } from './env'
 import manifest from './manifest'
 import semver from './semver'
 
+_manifest = manifest
+
 default_exclude_patterns = [
     '.DS_Store', '.svn/*', '.git*', env.MODULES_DIRECTORY + '/*',
     '*.pyc', '*.pyo', 'dist/*']
@@ -184,7 +186,7 @@ class Installer:
       nodepy.utils.machinery.reload_pkg_resources('pkg_resources')
       nodepy.utils.machinery.reload_pkg_resources('pip._vendor.pkg_resources')
 
-  def _load_manifest(self, filename, directory=None, do_raise=True):
+  def _load_manifest(self, filename, directory=None, do_raise=True, is_link=False):
     if not directory:
       directory = os.path.dirname(filename)
     mf = manifest.load(filename, directory=directory)
@@ -194,6 +196,7 @@ class Installer:
       print('Warning: invalid package manifest')
       print("  at '{}'".format(filename))
       return None
+    mf['__is_link'] = is_link
     return mf
 
   def find_package(self, package, internal=False):
@@ -226,7 +229,7 @@ class Installer:
       print("  at '{}'".format(dirname))
       return InvalidPackage(package, dirname)
     else:
-      return self._load_manifest(manifest_fn, directory=dirname)
+      return self._load_manifest(manifest_fn, directory=dirname, is_link=bool(lnk))
 
   def uninstall(self, package_name, internal=False):
     """
@@ -310,12 +313,28 @@ class Installer:
 
     return True
 
-  def install_dependencies_for(self, manifest, dev=False, internal=False):
+  def install_dependencies_for(self, manifest, install_dir, delayed_deps,
+        dev=False, internal=False):
     """
     Installs the Node.py and Python dependencies of a #PackageManifest.
     """
 
     deps = manifest.eval_fields(env.cfgvars(dev), 'dependencies', {})
+    for name, req in deps.items():
+      if not isinstance(req, _manifest.Requirement):
+        req = _manifest.Requirement.from_line(req, name=name)
+      deps[name] = req
+
+    if delayed_deps is not None:
+      # Delay installation of dependencies that are linked from
+      # subdirectories when not installing in development mode.
+      # These should be linked after the current package has been
+      # installed!
+      for name, req in list(deps.items()):
+        if req.type == 'path' and req.link and not dev:
+          delayed_deps[name] = req
+          del deps[name]
+
     if deps:
       print('Installing dependencies for "{}"{}...'.format(manifest.identifier,
           ' (dev) ' if dev else ''))
@@ -344,6 +363,10 @@ class Installer:
         have_package = self.find_package(name, req.internal)
         if isinstance(have_package, InvalidPackage):
           raise PackageNotFound
+        if have_package.get('__is_link'):
+          # If the package is a link -- try re installing always as the
+          # link may have been invalidated.
+          raise PackageNotFound
       except PackageNotFound as exc:
         install_deps.append((name, req))
       else:
@@ -359,7 +382,7 @@ class Installer:
           print('  Skipping "{}" dependency, have "{}" installed'
             .format(req.type, name, have_package.identifier))
         if self.recursive:
-          self.install_dependencies_for(have_package)
+          self.install_dependencies_for(have_package, have_package.directory, None)
 
     if not install_deps:
       return True
@@ -615,7 +638,8 @@ class Installer:
       return False, manifest
 
     # Install dependencies.
-    if not self.install_dependencies_for(manifest, dev=dev):
+    delayed_deps = {}
+    if not self.install_dependencies_for(manifest, target_dir, delayed_deps, dev=dev):
       return False, manifest
 
     if not movedir:
@@ -659,6 +683,11 @@ class Installer:
       traceback.print_exc()
       print('Error: post-install script failed.')
       return False, manifest
+
+    if delayed_deps:
+      print('Installing delayed dependencies for "{}"{}...'.format(
+          manifest.identifier, ' (dev) ' if dev else ''))
+      self.install_dependencies(delayed_deps, target_dir)
 
     return True, manifest
 
