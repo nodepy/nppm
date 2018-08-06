@@ -37,6 +37,7 @@
     "hammock": ">=0.2.4",
     "requests": ">=2.13.0",
     "six": ">=1.11.0",
+    "nr.fs": ">=1.0.3",
     "nr.parse": ">=1.0.0"
   },
   "cfg(dev).dependencies": {
