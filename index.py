@@ -211,7 +211,7 @@ install_parser.add_argument('-PT', '--pip-use-target-option',
   action='store_true', help='Use Pip\'s --target option instead of --prefix. '
     'Note that Pip will not install scripts with --target. Try this when '
     'Pip installations fail.')
-install_parser.add_argument('--packagedir',
+install_parser.add_argument('-p','--packagedir',
   help='The package directory. Defaults to the current working directory. '
     'Used to install the current package\'s (dev-)dependencies and to save '
     'package information when using the --save, --save-dev or --save-ext '
@@ -346,7 +346,7 @@ def do_install(args):
   if pure_install:
     installer.upgrade = True
     success, _manifest = installer.install_from_directory(
-        '.', develop=True, dev=args.dev)
+        args.packagedir, develop=True, dev=args.dev)
     if not success:
       return 1
     installer.relink_pip_scripts()
