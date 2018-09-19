@@ -114,7 +114,6 @@ def create_installer(args):
   installer = _install.Installer(
     upgrade=args.upgrade,
     install_location=get_install_location(args.global_, args.root),
-    pip_separate_process=args.pip_separate_process,
     pip_use_target_option=args.pip_use_target_option,
     recursive=args.recursive,
     verbose=args.verbose

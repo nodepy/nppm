@@ -144,13 +144,11 @@ class Installer:
   """
 
   def __init__(self, registry=None, upgrade=False, install_location='local',
-      pip_separate_process=False, pip_use_target_option=False, recursive=False,
-      verbose=False):
+      pip_use_target_option=False, recursive=False, verbose=False):
     assert install_location in ('local', 'global', 'root')
     self.reg = [registry] if registry else _registry.RegistryClient.get_all()
     self.upgrade = upgrade
     self.install_location = install_location
-    self.pip_separate_process = pip_separate_process
     self.pip_use_target_option = pip_use_target_option
     self.recursive = recursive
     self.verbose = verbose
@@ -453,13 +451,9 @@ class Installer:
     if self.verbose:
       cmd.append('--verbose')
 
-    print('  Installing Python dependencies via Pip:', ' '.join(cmd),
-        '(as a separate process)' if self.pip_separate_process else '')
+    print('  Installing Python dependencies via Pip:', ' '.join(cmd))
     with brewfix(), self.pythonpath_update_context():
-      if self.pip_separate_process:
-        res = subprocess.call([sys.executable, '-m', 'pip', 'install'] + cmd)
-      else:
-        res = pip_commands.install.InstallCommand().main(cmd)
+      res = subprocess.call([sys.executable, '-m', 'pip', 'install'] + cmd)
       if res != 0:
         print('Error: `pip install` failed with exit-code', res)
         return False
