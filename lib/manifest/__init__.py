@@ -307,7 +307,12 @@ class PipRequirement(pip_req.InstallRequirement):
   @classmethod
   def from_line(cls, line, *args, **kwargs):
     try:
-      return super(PipRequirement, cls).from_line(line, *args, **kwargs)
+      if hasattr(super(PipRequirement, cls), 'from_line'):
+        return super(PipRequirement, cls).from_line(line, *args, **kwargs)
+      else:
+        obj = pip_req.constructors.install_req_from_line(line, *args, **kwargs)
+        obj.__class__ = cls
+        return obj
     except pip_exceptions.InstallationError:
       raise ValueError('invalid Pip requirement: {!r}'.format(line))
 
