@@ -164,7 +164,7 @@ class ScriptMaker:
     maker.variants = set(('',))
     maker.set_mode = True
     maker.script_template = self._init_code() + code
-    return maker.make(script_name + '=isthisreallynecessary')
+    return maker.make(script_name + '=thisisreally:necessary')
 
   def __make_python_custom(self, script_name, code):
     code = self._init_code() + code

@@ -35,11 +35,9 @@ import semver from '../semver'
 import refstring from '../refstring'
 
 try:
-  import pip._internal.req as pip_req
-  import pip._internal.exceptions as pip_exceptions
+  from packaging.requirements import Requirement
 except ImportError:
-  import pip.req as pip_req
-  import pip.exceptions as pip_exceptions
+  from pip._vendor.packaging.requirements import Requirement
 
 # A list of strings that are accepted in the manifest's "categories" field.
 categories = [
@@ -117,7 +115,7 @@ def _validate_dependencies(field):
 def _validate_pip_dependencies(field):
   for key, value in field.value.items():
     try:
-      PipRequirement.from_line(key + value)
+      Requirement(key + value)
     except ValueError as exc:
       field.errors.append(str(exc))
 
@@ -300,16 +298,6 @@ class Manifest(collections.OrderedDict):
 
   def eval_fields(self, vars, name=None, default=NotImplemented):
     return eval_fields(self, vars, name, default)
-
-
-class PipRequirement(pip_req.InstallRequirement):
-
-  @classmethod
-  def from_line(cls, line, *args, **kwargs):
-    try:
-      return super(PipRequirement, cls).from_line(line, *args, **kwargs)
-    except pip_exceptions.InstallationError:
-      raise ValueError('invalid Pip requirement: {!r}'.format(line))
 
 
 class Requirement(object):
