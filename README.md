@@ -34,6 +34,13 @@ installed.
 
 ## Changes
 
+### v2.1.1 (2019-10-20)
+
+* Fix `ScriptMaker` (now needs to specify an import name in the entrypoint
+    that is passed into `distlib`)
+* Fix Pip requirement validation which relied on internal Pip APIs (now uses
+    `packaging` module, or the version vendored via Pip)
+
 ### v2.1.0 (2018-06-14)
 
 * Renamed from `nodepy-pm` to `nppm`
