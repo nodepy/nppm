@@ -37,7 +37,7 @@
     "hammock": ">=0.2.4",
     "requests": ">=2.13.0",
     "six": ">=1.11.0",
-    "nr.parse": ">=1.0.0"
+    "nr.parsing.core": ">=2.0.4"
   },
   "cfg(dev).dependencies": {
     "nodepy-nosetests": "git+https://github.com/nodepy/nodepy-nosetests.git@v0.0.6"

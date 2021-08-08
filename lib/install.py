@@ -25,9 +25,9 @@ from fnmatch import fnmatch
 from nodepy.utils import pathlib
 
 try:
-  import pip._internal.commands as pip_commands
+  from pip._internal.commands.install import InstallCommand
 except ImportError:
-  import pip.commands as pip_commands
+  from pip.commands.install import InstallCommand
 
 import contextlib
 import errno
@@ -424,7 +424,7 @@ class Installer:
       if self.pip_separate_process:
         res = subprocess.call([sys.executable, '-m', 'pip', 'install'] + cmd)
       else:
-        res = pip_commands.install.InstallCommand().main(cmd)
+        res = InstallCommand('install', 'installs stuff').main(cmd)
       if res != 0:
         print('Error: `pip install` failed with exit-code', res)
         return False

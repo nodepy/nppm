@@ -26,11 +26,7 @@ Parser and evaluator for configuration filter strings.
 
 import io
 import string
-
-try:
-  import nr.strex as strex
-except ImportError:
-  import nr.parse as strex
+import nr.parsing.core as parsing
 
 
 class _AstNode(object):
@@ -136,36 +132,35 @@ class Parser(object):
   """
 
   alphanums = string.ascii_letters + string.digits
-  KW = lambda n, *a: strex.Keyword(n, n, *a)
+  value_chars = ''.join(set(chr(i) for i in range(32, 127)) - set('()<>=! '))
 
-  rules = [
-    strex.Charset(None, '\t ', skip=True),
-    strex.Keyword('(', '('),
-    strex.Keyword(')', ')'),
-    strex.Keyword('logop', 'and'),
-    strex.Keyword('logop', 'or'),
-    strex.Keyword('op', '=='),
-    strex.Keyword('op', '!='),
-    strex.Keyword('op', '<='),
-    strex.Keyword('op', '>='),
-    strex.Keyword('op', '<'),
-    strex.Keyword('op', '>'),
-    strex.Charset('var', alphanums),
-    strex.Charset('value', set(chr(i) for i in range(32, 127)) - set('()<>=! '))
-  ]
+  rules = parsing.RuleSet(('eof', ''))
+  rules.rule('', parsing.rules.regex_extract('[\t ]'), skip=True)
+  rules.rule('(', parsing.rules.regex_extract(r'\('))
+  rules.rule(')', parsing.rules.regex_extract(r'\)'))
+  rules.rule('logop', parsing.rules.regex_extract(r'and'))
+  rules.rule('logop', parsing.rules.regex_extract(r'or'))
+  rules.rule('op', parsing.rules.regex_extract(r'=='))
+  rules.rule('op', parsing.rules.regex_extract(r'!='))
+  rules.rule('op', parsing.rules.regex_extract(r'<='))
+  rules.rule('op', parsing.rules.regex_extract(r'>='))
+  rules.rule('op', parsing.rules.regex_extract(r'<'))
+  rules.rule('op', parsing.rules.regex_extract(r'>'))
+  rules.rule('var', parsing.rules.regex_extract('[' + alphanums + ']+'))
+  rules.rule('value', parsing.rules.regex_extract('[' + value_chars + ']+'))
 
   def __init__(self, source):
-    self.scanner = strex.Scanner(source)
-    self.lexer = strex.Lexer(self.scanner, self.rules)
+    self.scanner = parsing.Scanner(source)
+    self.lexer = parsing.Tokenizer(self.rules, self.scanner)
 
   def parse(self):
     return self._parse_expression()
 
   def _parse_expression(self):
-    token = self.lexer.next('var', '(')
+    token = self.lexer.next({'var', '('})
     if token.type == '(':
       op = self._parse_expression()
-      self.lexer.next(')')
+      self.lexer.next({')'})
       return op
     else:
       left = Var(token.value)
@@ -174,22 +169,19 @@ class Parser(object):
         if newop is None:
           break
         left = newop
-    self.lexer.next(strex.eof)
+    self.lexer.next({'eof'})
     return left
 
   def _parse_operator(self, left):
-    if isinstance(left, Var):
-      accept = ('logop', 'op')
-    else:
-      accept = ('logop', strex.eof)
-    token = self.lexer.accept(*accept)
+    assert isinstance(left, Var), type(left)
+    token = self.lexer.next({'logop', 'op', 'eof'})  # .accept()?
     if not token:
       return None
     if token.type == 'logop':
       right = self._parse_expression()
       return Logop(left, token.value, right)
     elif token.type == 'op':
-      value = self.lexer.next('value', weighted=True).value
+      value = self.lexer.next({'value'}).value  # weighted=True ?
       return Compare(left.name, token.value, value)
 
 
@@ -261,6 +253,6 @@ def parse(s):
   except KeyError:
     try:
       result = parse_cache[s] = Parser(s).parse()
-    except strex.UnexpectedTokenError:
+    except parsing.UnexpectedTokenError:
       raise ValueError('invalid cfg-filter string: {!r}'.format(s))
   return result
